@@ -3,7 +3,7 @@
  *
  *  Point Cloud Library (PCL) - www.pointclouds.org
  *  Copyright (c) 2011, Willow Garage, Inc.
- * 
+ *
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -104,7 +104,7 @@ namespace pcl
       }
 
       void
-      generateImage (const MapArr& vmap, const MapArr& nmap, const LightSource& light, 
+      generateImage (const MapArr& vmap, const MapArr& nmap, const LightSource& light,
                                   PtrStepSz<uchar3> dst)
       {
         ImageGenerator ig;
@@ -119,7 +119,7 @@ namespace pcl
         generateImageKernel<<<grid, block>>>(ig);
         cudaSafeCall (cudaGetLastError ());
         cudaSafeCall (cudaDeviceSynchronize ());
-      }      
+      }
     }
   }
 }
@@ -140,31 +140,31 @@ namespace pcl
         if (x < depth.cols && y < depth.rows)
         {
           unsigned short result = 0;
-                  
+
           float3 v_g;
-          v_g.x = vmap.ptr (y)[x];        
+          v_g.x = vmap.ptr (y)[x];
           if (!isnan (v_g.x))
           {
             v_g.y = vmap.ptr (y +     depth.rows)[x];
-            v_g.z = vmap.ptr (y + 2 * depth.rows)[x]; 
+            v_g.z = vmap.ptr (y + 2 * depth.rows)[x];
 
             float v_z = dot(R_inv_row3, v_g - t);
-            
+
             result = static_cast<unsigned short>(v_z * 1000);
           }
           depth.ptr(y)[x] = result;
-        }      
-      }     
+        }
+      }
 
       void
       generateDepth (const Mat33& R_inv, const float3& t, const MapArr& vmap, DepthMap& dst)
       {
         dim3 block(32, 8);
         dim3 grid(divUp(dst.cols(), block.x), divUp(dst.rows(), block.y));
-        
+
         generateDepthKernel<<<grid, block>>>(R_inv.data[2], t, vmap, dst);
         cudaSafeCall (cudaGetLastError ());
-        cudaSafeCall (cudaDeviceSynchronize ());  
+        cudaSafeCall (cudaDeviceSynchronize ());
       }
     }
   }
@@ -177,15 +177,15 @@ namespace pcl
   {
     namespace kinfuLS
     {
-      __global__ void 
+      __global__ void
       paint3DViewKernel(const PtrStep<uchar3> colors, PtrStepSz<uchar3> dst, float colors_weight)
       {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
-        
+
         if (x < dst.cols && y < dst.rows)
         {
-          uchar3 value = dst.ptr(y)[x];        
+          uchar3 value = dst.ptr(y)[x];
           uchar3 color = colors.ptr(y)[x];
 
           if (value.x != 0 || value.y != 0 || value.z != 0)
@@ -203,7 +203,7 @@ namespace pcl
         }
       }
 
-      void 
+      void
       paint3DView(const PtrStep<uchar3>& colors, PtrStepSz<uchar3> dst, float colors_weight)
       {
         dim3 block(32, 8);
@@ -213,7 +213,7 @@ namespace pcl
 
         paint3DViewKernel<<<grid, block>>>(colors, dst, colors_weight);
         cudaSafeCall (cudaGetLastError ());
-        cudaSafeCall (cudaDeviceSynchronize ());  
+        cudaSafeCall (cudaDeviceSynchronize ());
       }
     }
   }

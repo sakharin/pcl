@@ -67,12 +67,12 @@ namespace pcl
         typedef boost::shared_ptr<RayCaster> Ptr;
         typedef pcl::gpu::DeviceArray2D<float> MapArr;
         typedef pcl::gpu::DeviceArray2D<PixelRGB> View;
-        typedef pcl::gpu::DeviceArray2D<unsigned short> Depth;     
+        typedef pcl::gpu::DeviceArray2D<unsigned short> Depth;
 
-        /** \brief Image with height */ 
-        const int cols, rows;      
-        
-        /** \brief Constructor 
+        /** \brief Image with height */
+        const int cols, rows;
+
+        /** \brief Constructor
           * \param[in] rows image rows
           * \param[in] cols image cols
           * \param[in] fx focal x
@@ -81,23 +81,23 @@ namespace pcl
           * \param[in] cy principal point y
           */
         RayCaster(int rows = 480, int cols = 640, float fx = 525.f, float fy = 525.f, float cx = -1, float cy = -1);
-        
+
         ~RayCaster();
 
-        /** \brief Sets camera intrinsics */ 
+        /** \brief Sets camera intrinsics */
         void
         setIntrinsics(float fx = 525.f, float fy = 525.f, float cx = -1, float cy = -1);
-        
+
         /** \brief Runs raycasting algorithm from given camera pose. It writes results to internal fiels.
           * \param[in] volume tsdf volume container
           * \param[in] camera_pose camera pose
           * \param buffer
-          */ 
-        void 
+          */
+        void
         run(const TsdfVolume& volume, const Eigen::Affine3f& camera_pose, tsdf_buffer* buffer);
 
         /** \brief Generates scene view using data raycasted by run method. So call it before.
-          * \param[out] view output array for RGB image        
+          * \param[out] view output array for RGB image
           */
         void
         generateSceneView(View& view) const;
@@ -110,35 +110,35 @@ namespace pcl
         generateSceneView(View& view, const Eigen::Vector3f& light_source_pose) const;
 
         /** \brief Generates depth image using data raycasted by run method. So call it before.
-          * \param[out] depth output array for depth image        
+          * \param[out] depth output array for depth image
           */
         void
         generateDepthImage(Depth& depth) const;
-        
-        /** \brief Returns raycasterd vertex map. */ 
+
+        /** \brief Returns raycasterd vertex map. */
         MapArr
         getVertexMap() const;
 
-        /** \brief Returns raycasterd normal map. */ 
+        /** \brief Returns raycasterd normal map. */
         MapArr
         getNormalMap() const;
 
       private:
-        /** \brief Camera intrinsics. */ 
+        /** \brief Camera intrinsics. */
         float fx_, fy_, cx_, cy_;
-              
+
         /* Vertext/normal map internal representation example for rows=2 and cols=4
         *  X X X X
         *  X X X X
         *  Y Y Y Y
         *  Y Y Y Y
         *  Z Z Z Z
-        *  Z Z Z Z     
+        *  Z Z Z Z
         */
 
         /** \brief vertex map of 3D points*/
         MapArr vertex_map_;
-        
+
         /** \brief normal map of 3D points*/
         MapArr normal_map_;
 
@@ -152,7 +152,7 @@ public:
 EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
       };
-      
+
       /** \brief Converts from map representation to organized not-dence point cloud. */
       template<typename PointType>
       void convertMapToOranizedCloud(const RayCaster::MapArr& map, pcl::gpu::DeviceArray2D<PointType>& cloud);

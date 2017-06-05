@@ -51,7 +51,7 @@ namespace pcl
   namespace device
   {
     namespace kinfuLS
-    {   
+    {
       #define INV_DIV 3.051850947599719e-5f
 
       __device__ __forceinline__ void
@@ -92,7 +92,7 @@ namespace pcl
       __device__ __forceinline__ T
       scan_warp ( volatile T *ptr, const unsigned int idx = threadIdx.x )
       {
-        const unsigned int lane = idx & 31;       // index of thread in warp (0..31) 
+        const unsigned int lane = idx & 31;       // index of thread in warp (0..31)
 
         if (lane >=  1) ptr[idx] = ptr[idx -  1] + ptr[idx];
         if (lane >=  2) ptr[idx] = ptr[idx -  2] + ptr[idx];

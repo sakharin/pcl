@@ -59,7 +59,7 @@ namespace pcl
 
       //TSDF fixed point divisor (if old format is enabled)
       const int DIVISOR = 32767;     // SHRT_MAX;
-      
+
       //RGB images resolution
       const float  HEIGHT = 480.0f;
       const float  WIDTH = 640.0f;
@@ -67,17 +67,17 @@ namespace pcl
       //Should be multiple of 32
       enum { VOLUME_X = 512, VOLUME_Y = 512, VOLUME_Z = 512 };
 
-          
+
       //Temporary constant (until we make it automatic) that holds the Kinect's focal length
       const float FOCAL_LENGTH = 575.816f;
-    
+
       const float VOLUME_SIZE = 3.0f; // physical size represented by the TSDF volume. In meters
       const float DISTANCE_THRESHOLD = 1.5f; // when the camera target point is farther than DISTANCE_THRESHOLD from the current cube's center, shifting occurs. In meters
       const int SNAPSHOT_RATE = 45; // every 45 frames an RGB snapshot will be saved. -et parameter is needed when calling Kinfu Large Scale in command line.
 
 
       /** \brief Camera intrinsics structure
-        */ 
+        */
       struct Intr
       {
         float fx, fy, cx, cy;
@@ -85,11 +85,11 @@ namespace pcl
         Intr (float fx_, float fy_, float cx_, float cy_) : fx (fx_), fy (fy_), cx (cx_), cy (cy_) {}
 
         Intr operator () (int level_index) const
-        { 
-          int div = 1 << level_index; 
+        {
+          int div = 1 << level_index;
           return (Intr (fx / div, fy / div, cx / div, cy / div));
         }
-        
+
         friend inline std::ostream&
         operator << (std::ostream& os, const Intr& intr)
         {
@@ -99,7 +99,7 @@ namespace pcl
       };
 
       /** \brief 3x3 Matrix for device code
-        */ 
+        */
       struct Mat33
       {
         float3 data[3];

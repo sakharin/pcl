@@ -51,33 +51,33 @@ namespace pcl
       using PointCloudColorHandler<PointT>::capable_;
       using PointCloudColorHandler<PointT>::cloud_;
 
-      typedef typename PointCloudColorHandler<PointT>::PointCloud::ConstPtr PointCloudConstPtr;                            
+      typedef typename PointCloudColorHandler<PointT>::PointCloud::ConstPtr PointCloudConstPtr;
       typedef typename pcl::PointCloud<RGB>::ConstPtr RgbCloudConstPtr;
 
     public:
       typedef boost::shared_ptr<PointCloudColorHandlerRGBHack<PointT> > Ptr;
       typedef boost::shared_ptr<const PointCloudColorHandlerRGBHack<PointT> > ConstPtr;
-      
-      PointCloudColorHandlerRGBHack (const PointCloudConstPtr& cloud, const RgbCloudConstPtr& colors) : 
+
+      PointCloudColorHandlerRGBHack (const PointCloudConstPtr& cloud, const RgbCloudConstPtr& colors) :
           PointCloudColorHandler<PointT> (cloud), rgb_ (colors)
       {
         capable_ = true;
       }
-            
-      virtual bool 
+
+      virtual bool
       getColor (vtkSmartPointer<vtkDataArray> &scalars) const
       {
         if (!capable_)
           return (false);
-      
+
         if (!scalars)
           scalars = vtkSmartPointer<vtkUnsignedCharArray>::New ();
         scalars->SetNumberOfComponents (3);
-        
+
         vtkIdType nr_points = (int)cloud_->points.size ();
         reinterpret_cast<vtkUnsignedCharArray*>(&(*scalars))->SetNumberOfTuples (nr_points);
         unsigned char* colors = reinterpret_cast<vtkUnsignedCharArray*>(&(*scalars))->GetPointer (0);
-        
+
         // Color every point
         if (nr_points != (int)rgb_->points.size ())
           std::fill(colors, colors + nr_points * 3, (unsigned char)0xFF);
@@ -91,11 +91,11 @@ namespace pcl
           }
         return (true);
       }
-    
+
     private:
-      virtual std::string getFieldName () const { return ("rgb"); }    
+      virtual std::string getFieldName () const { return ("rgb"); }
       virtual inline std::string getName () const { return ("PointCloudColorHandlerRGBHack"); }
-      RgbCloudConstPtr rgb_;    
+      RgbCloudConstPtr rgb_;
     };
   }
 }

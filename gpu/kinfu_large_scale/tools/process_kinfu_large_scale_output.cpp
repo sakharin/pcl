@@ -77,19 +77,19 @@ main (int argc, char** argv)
     print_help ();
     return (-1);
   }
-  
+
   try {
 
     // Creating world model object
     pcl::kinfuLS::WorldModel<pcl::PointXYZI> wm;
-  
+
     //Adding current cloud to the world model
     wm.addSlice (cloud);
-  
+
     std::vector<pcl::PointCloud<pcl::PointXYZI>::Ptr> clouds;
     std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f> > transforms;
-  
-    //Get world as a vector of cubes 
+
+    //Get world as a vector of cubes
     wm.getWorldAsCubes (pcl::device::kinfuLS::VOLUME_X, clouds, transforms, 0.025); // 2.5% overlapp (12 cells with a 512-wide cube)
 
     //Creating the standalone marching cubes instance
@@ -109,7 +109,7 @@ main (int argc, char** argv)
 
     PCL_INFO ("Done!\n");
     return (0);
-  
+
   }
   catch (const pcl::PCLException& /*e*/) { PCL_ERROR ("PCLException... Exiting...\n"); }
   catch (const std::bad_alloc& /*e*/) { PCL_ERROR ("Bad alloc... Exiting...\n"); }

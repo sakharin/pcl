@@ -77,17 +77,17 @@ namespace pcl
         typedef typename pcl::ConditionAnd<PointT>::Ptr ConditionAndPtr;
         typedef typename pcl::ConditionOr<PointT>::Ptr ConditionOrPtr;
         typedef typename pcl::FieldComparison<PointT>::ConstPtr FieldComparisonConstPtr;
-        
+
         typedef typename pcl::traits::fieldList<PointT>::type FieldList;
 
         /** \brief Default constructor for the WorldModel.
           */
-        WorldModel() : 
+        WorldModel() :
           world_ (new PointCloud)
         {
           world_->is_dense = false;
         }
-        
+
         /** \brief Clear the world.
           */
         void reset()
@@ -120,8 +120,8 @@ namespace pcl
         void getExistingData(const double previous_origin_x, const double previous_origin_y, const double previous_origin_z,
                             const double offset_x, const double offset_y, const double offset_z,
                             const double volume_x, const double volume_y, const double volume_z, pcl::PointCloud<PointT> &existing_slice);
-        
-        /** \brief Give nan values to the slice of the world 
+
+        /** \brief Give nan values to the slice of the world
           * \param[in] origin_x global origin of the cube on X axis, before the shift
           * \param[in] origin_y global origin of the cube on Y axis, before the shift
           * \param[in] origin_z global origin of the cube on Z axis, before the shift
@@ -131,54 +131,54 @@ namespace pcl
           * \param[in] size_x size of the cube, X axis, in indices
           * \param[in] size_y size of the cube, Y axis, in indices
           * \param[in] size_z size of the cube, Z axis, in indices
-          */                    
+          */
         void setSliceAsNans (const double origin_x, const double origin_y, const double origin_z,
                             const double offset_x, const double offset_y, const double offset_z,
-                            const int size_x, const int size_y, const int size_z);            
+                            const int size_x, const int size_y, const int size_z);
 
         /** \brief Remove points with nan values from the world.
           */
-        void cleanWorldFromNans () 
-        { 
+        void cleanWorldFromNans ()
+        {
           world_->is_dense = false;
-          std::vector<int> indices; 
+          std::vector<int> indices;
           pcl::removeNaNFromPointCloud (*world_, *world_, indices);
         }
 
         /** \brief Returns the world as a point cloud.
           */
-        PointCloudPtr getWorld () 
-        { 
-          return (world_); 
+        PointCloudPtr getWorld ()
+        {
+          return (world_);
         }
-        
+
         /** \brief Returns the number of points contained in the world.
-          */      
-        size_t getWorldSize () 
-        { 
+          */
+        size_t getWorldSize ()
+        {
           return (world_->points.size () );
         }
 
         /** \brief Returns the world as two vectors of cubes of size "size" (pointclouds) and transforms
           * \param[in] size the size of a 3D cube.
-          * \param[out] cubes a vector of point clouds representing each cube (in their original world coordinates). 
+          * \param[out] cubes a vector of point clouds representing each cube (in their original world coordinates).
           * \param[out] transforms a vector containing the xyz position of each cube in world coordinates.
           * \param[in] overlap optional overlap (in percent) between each cube (usefull to create overlapped meshes).
           */
         void getWorldAsCubes (double size, std::vector<PointCloudPtr> &cubes, std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f> > &transforms, double overlap = 0.0);
-        
-        
+
+
       private:
 
         /** \brief cloud containing our world */
         PointCloudPtr world_;
 
-        /** \brief set the points which index is in the indices vector to nan 
+        /** \brief set the points which index is in the indices vector to nan
           * \param[in] cloud the cloud that contains the point to be set to nan
           * \param[in] indices the vector of indices to set to nan
           */
         inline void setIndicesAsNans (PointCloudPtr cloud, IndicesConstPtr indices);
-        
+
     };
   }
 }

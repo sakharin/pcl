@@ -46,7 +46,7 @@ namespace pcl
     namespace kinfuLS
     {
       /** \brief Input/output pixel format for KinfuTracker */
-        
+
       struct PixelRGB
       {
         unsigned char r, g, b;

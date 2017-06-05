@@ -169,21 +169,21 @@ namespace pcl
           float res = (1 - a) * (
                                   (1 - b) * (
                                           readTsdf (g.x + 0, g.y + 0, g.z + 0, buffer) * (1 - c) +
-                                          readTsdf (g.x + 0, g.y + 0, g.z + 1, buffer) *      c 
+                                          readTsdf (g.x + 0, g.y + 0, g.z + 1, buffer) *      c
                                           )
                                   + b * (
                                           readTsdf (g.x + 0, g.y + 1, g.z + 0, buffer) * (1 - c) +
-                                          readTsdf (g.x + 0, g.y + 1, g.z + 1, buffer) *      c  
+                                          readTsdf (g.x + 0, g.y + 1, g.z + 1, buffer) *      c
                                           )
                                   )
                           + a * (
                                   (1 - b) * (
                                           readTsdf (g.x + 1, g.y + 0, g.z + 0, buffer) * (1 - c) +
-                                          readTsdf (g.x + 1, g.y + 0, g.z + 1, buffer) *      c 
+                                          readTsdf (g.x + 1, g.y + 0, g.z + 1, buffer) *      c
                                           )
                                   + b * (
                                           readTsdf (g.x + 1, g.y + 1, g.z + 0, buffer) * (1 - c) +
-                                          readTsdf (g.x + 1, g.y + 1, g.z + 1, buffer) *      c 
+                                          readTsdf (g.x + 1, g.y + 1, g.z + 1, buffer) *      c
                                           )
                                   )
                                           ;
@@ -321,7 +321,7 @@ namespace pcl
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
       void
-      raycast (const Intr& intr, const Mat33& Rcurr, const float3& tcurr, 
+      raycast (const Intr& intr, const Mat33& Rcurr, const float3& tcurr,
                             float tranc_dist, const float3& volume_size,
                             const PtrStep<short2>& volume, const pcl::gpu::kinfuLS::tsdf_buffer* buffer, MapArr& vmap, MapArr& nmap)
       {

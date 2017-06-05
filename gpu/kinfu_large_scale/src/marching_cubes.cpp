@@ -44,28 +44,28 @@ using pcl::device::kinfuLS::device_cast;
 using pcl::gpu::DeviceArray;
 
 extern const int edgeTable[256];
-extern const int triTable[256][16]; 
+extern const int triTable[256][16];
 extern const int numVertsTable[256];
 
 pcl::gpu::kinfuLS::MarchingCubes::MarchingCubes()
 {
   edgeTable_.upload(edgeTable, 256);
   numVertsTable_.upload(numVertsTable, 256);
-  triTable_.upload(&triTable[0][0], 256 * 16);    
+  triTable_.upload(&triTable[0][0], 256 * 16);
 }
 
 pcl::gpu::kinfuLS::MarchingCubes::~MarchingCubes() {}
 
-DeviceArray<pcl::gpu::kinfuLS::MarchingCubes::PointType> 
+DeviceArray<pcl::gpu::kinfuLS::MarchingCubes::PointType>
 pcl::gpu::kinfuLS::MarchingCubes::run(const TsdfVolume& tsdf, DeviceArray<PointType>& triangles_buffer)
-{  
+{
   if (triangles_buffer.empty())
     triangles_buffer.create(DEFAULT_TRIANGLES_BUFFER_SIZE);
-  occupied_voxels_buffer_.create(3, triangles_buffer.size() / 3);    
+  occupied_voxels_buffer_.create(3, triangles_buffer.size() / 3);
 
   pcl::device::kinfuLS::bindTextures(edgeTable_, triTable_, numVertsTable_);
-  
-  int active_voxels = pcl::device::kinfuLS::getOccupiedVoxels(tsdf.data(), occupied_voxels_buffer_);  
+
+  int active_voxels = pcl::device::kinfuLS::getOccupiedVoxels(tsdf.data(), occupied_voxels_buffer_);
   if(!active_voxels)
   {
     pcl::device::kinfuLS::unbindTextures();
@@ -75,10 +75,10 @@ pcl::gpu::kinfuLS::MarchingCubes::run(const TsdfVolume& tsdf, DeviceArray<PointT
   DeviceArray2D<int> occupied_voxels(3, active_voxels, occupied_voxels_buffer_.ptr(), occupied_voxels_buffer_.step());
 
   int total_vertexes = pcl::device::kinfuLS::computeOffsetsAndTotalVertexes(occupied_voxels);
-  
+
   float3 volume_size = device_cast<const float3>(tsdf.getSize());
   pcl::device::kinfuLS::generateTriangles(tsdf.data(), occupied_voxels, volume_size, (DeviceArray<pcl::device::kinfuLS::PointType>&)triangles_buffer);
-    
+
   pcl::device::kinfuLS::unbindTextures();
   return DeviceArray<PointType>(triangles_buffer.ptr(), total_vertexes);
 }
@@ -86,7 +86,7 @@ pcl::gpu::kinfuLS::MarchingCubes::run(const TsdfVolume& tsdf, DeviceArray<PointT
 
 // edge table maps 8-bit flag representing which cube vertices are inside
 // the isosurface to 12-bit number indicating which edges are intersected
-const int edgeTable[256] = 
+const int edgeTable[256] =
 {
 	0x0  , 0x109, 0x203, 0x30a, 0x406, 0x50f, 0x605, 0x70c,
 	0x80c, 0x905, 0xa0f, 0xb06, 0xc0a, 0xd03, 0xe09, 0xf00,
@@ -124,7 +124,7 @@ const int edgeTable[256] =
 
 // triangle table maps same cube vertex index to a list of up to 5 triangles
 // which are built from the interpolated edge vertices
-const int triTable[256][16] = 
+const int triTable[256][16] =
 {
     {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
 	{0, 8, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
@@ -385,7 +385,7 @@ const int triTable[256][16] =
 };
 
 // number of vertices for each case above
-const int numVertsTable[256] = 
+const int numVertsTable[256] =
 {
     0,
     3,

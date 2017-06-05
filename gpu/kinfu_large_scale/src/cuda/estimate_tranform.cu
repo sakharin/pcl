@@ -3,7 +3,7 @@
  *
  *  Point Cloud Library (PCL) - www.pointclouds.org
  *  Copyright (c) 2011, Willow Garage, Inc.
- * 
+ *
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -186,9 +186,9 @@ namespace pcl
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
       void
-      estimateTransform (const MapArr& v_dst, const MapArr& n_dst, 
+      estimateTransform (const MapArr& v_dst, const MapArr& n_dst,
                                       const MapArr& v_src, const PtrStepSz<short2>& coresp,
-                                      DeviceArray2D<float>& gbuf, DeviceArray<float>& mbuf, 
+                                      DeviceArray2D<float>& gbuf, DeviceArray<float>& mbuf,
                                       float* matrixA_host, float* vectorB_host)
       {
         typedef TransformEstimator<float> TEst;

@@ -46,34 +46,34 @@ namespace pcl
   namespace device
   {
     namespace kinfuLS
-    {   
-      template <class T> 
+    {
+      template <class T>
       __device__ __host__ __forceinline__ void swap ( T& a, T& b )
       {
         T c(a); a=b; b=c;
       }
-          
+
       template<typename T> struct numeric_limits;
 
       template<> struct numeric_limits<float>
       {
-        __device__ __forceinline__ static float 
+        __device__ __forceinline__ static float
         quiet_NaN() { return __int_as_float(0x7fffffff); /*CUDART_NAN_F*/ };
-        __device__ __forceinline__ static float 
+        __device__ __forceinline__ static float
         epsilon() { return 1.192092896e-07f/*FLT_EPSILON*/; };
 
-        __device__ __forceinline__ static float 
+        __device__ __forceinline__ static float
         min() { return 1.175494351e-38f/*FLT_MIN*/; };
-        __device__ __forceinline__ static float 
+        __device__ __forceinline__ static float
         max() { return 3.402823466e+38f/*FLT_MAX*/; };
       };
 
       template<> struct numeric_limits<short>
       {
-        __device__ __forceinline__ static short 
+        __device__ __forceinline__ static short
         max() { return SHRT_MAX; };
       };
-        
+
       __device__ __forceinline__ float
       dot(const float3& v1, const float3& v2)
       {
@@ -91,7 +91,7 @@ namespace pcl
       {
         return make_float3(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z);
       }
-      
+
       __device__ __forceinline__ float3&
       operator*=(float3& vec, const float& v)
       {
@@ -122,7 +122,7 @@ namespace pcl
         return v * rsqrt(dot(v, v));
       }
 
-      __device__ __host__ __forceinline__ float3 
+      __device__ __host__ __forceinline__ float3
       cross(const float3& v1, const float3& v2)
       {
         return make_float3(v1.y * v2.z - v1.z * v2.y, v1.z * v2.x - v1.x * v2.z, v1.x * v2.y - v1.y * v2.x);
@@ -141,7 +141,7 @@ namespace pcl
         roots.y = 0.5f * (b - sd);
       }
 
-      __device__ __forceinline__ void 
+      __device__ __forceinline__ void
       computeRoots3(float c0, float c1, float c2, float3& roots)
       {
         if ( fabsf(c0) < numeric_limits<float>::epsilon())// one root is 0 -> quadratic equation
@@ -196,15 +196,15 @@ namespace pcl
         template<int Rows>
         struct MiniMat
         {
-          float3 data[Rows];                
+          float3 data[Rows];
           __device__ __host__ __forceinline__ float3& operator[](int i) { return data[i]; }
           __device__ __host__ __forceinline__ const float3& operator[](int i) const { return data[i]; }
         };
         typedef MiniMat<3> Mat33;
         typedef MiniMat<4> Mat43;
-        
-        
-        static __forceinline__ __device__ float3 
+
+
+        static __forceinline__ __device__ float3
         unitOrthogonal (const float3& src)
         {
           float3 perp;
@@ -216,30 +216,30 @@ namespace pcl
           * simply take ( -y, x, 0 ) and normalize it.
           */
           if(!isMuchSmallerThan(src.x, src.z) || !isMuchSmallerThan(src.y, src.z))
-          {   
+          {
             float invnm = rsqrtf(src.x*src.x + src.y*src.y);
             perp.x = -src.y * invnm;
             perp.y =  src.x * invnm;
             perp.z = 0.0f;
-          }   
+          }
           /* if both x and y are close to zero, then the vector is close
           * to the z-axis, so it's far from colinear to the x-axis for instance.
-          * So we take the crossed product with (1,0,0) and normalize it. 
+          * So we take the crossed product with (1,0,0) and normalize it.
           */
           else
-          {   
+          {
             float invnm = rsqrtf(src.z * src.z + src.y * src.y);
             perp.x = 0.0f;
             perp.y = -src.z * invnm;
             perp.z =  src.y * invnm;
-          }   
+          }
 
           return perp;
         }
 
-        __device__ __forceinline__ 
-        Eigen33(volatile float* mat_pkg_arg) : mat_pkg(mat_pkg_arg) {}                      
-        __device__ __forceinline__ void 
+        __device__ __forceinline__
+        Eigen33(volatile float* mat_pkg_arg) : mat_pkg(mat_pkg_arg) {}
+        __device__ __forceinline__ void
         compute(Mat33& tmp, Mat33& vec_tmp, Mat33& evecs, float3& evals)
         {
           // Scale the matrix so its entries are in [-1,1].  The scaling is applied
@@ -264,30 +264,30 @@ namespace pcl
           // The characteristic equation is x^3 - c2*x^2 + c1*x - c0 = 0.  The
           // eigenvalues are the roots to this equation, all guaranteed to be
           // real-valued, because the matrix is symmetric.
-          float c0 = m00() * m11() * m22() 
+          float c0 = m00() * m11() * m22()
               + 2.f * m01() * m02() * m12()
-              - m00() * m12() * m12() 
-              - m11() * m02() * m02() 
+              - m00() * m12() * m12()
+              - m11() * m02() * m02()
               - m22() * m01() * m01();
-          float c1 = m00() * m11() - 
-              m01() * m01() + 
-              m00() * m22() - 
-              m02() * m02() + 
-              m11() * m22() - 
+          float c1 = m00() * m11() -
+              m01() * m01() +
+              m00() * m22() -
+              m02() * m02() +
+              m11() * m22() -
               m12() * m12();
           float c2 = m00() + m11() + m22();
 
           computeRoots3(c0, c1, c2, evals);
 
           if(evals.z - evals.x <= numeric_limits<float>::epsilon())
-          {                                   
+          {
             evecs[0] = make_float3(1.f, 0.f, 0.f);
             evecs[1] = make_float3(0.f, 1.f, 0.f);
             evecs[2] = make_float3(0.f, 0.f, 1.f);
           }
           else if (evals.y - evals.x <= numeric_limits<float>::epsilon() )
           {
-            // first and second equal                
+            // first and second equal
             tmp[0] = row0();  tmp[1] = row1();  tmp[2] = row2();
             tmp[0].x -= evals.z; tmp[1].y -= evals.z; tmp[2].z -= evals.z;
 
@@ -317,7 +317,7 @@ namespace pcl
           }
           else if (evals.z - evals.y <= numeric_limits<float>::epsilon() )
           {
-            // second and third equal                                    
+            // second and third equal
             tmp[0] = row0();  tmp[1] = row1();  tmp[2] = row2();
             tmp[0].x -= evals.x; tmp[1].y -= evals.x; tmp[2].z -= evals.x;
 
@@ -384,7 +384,7 @@ namespace pcl
 
             vec_tmp[0] = cross(tmp[0], tmp[1]);
             vec_tmp[1] = cross(tmp[0], tmp[2]);
-            vec_tmp[2] = cross(tmp[1], tmp[2]);                    
+            vec_tmp[2] = cross(tmp[1], tmp[2]);
 
             len1 = dot(vec_tmp[0], vec_tmp[0]);
             len2 = dot(vec_tmp[1], vec_tmp[1]);
@@ -436,14 +436,14 @@ namespace pcl
               mmax[0] = len2;
               evecs[0] = vec_tmp[1] * rsqrtf (len2);
               min_el = len3 <= mmax[min_el] ? 0 : min_el;
-              max_el = len3  > mmax[max_el] ? 0 : max_el; 		
+              max_el = len3  > mmax[max_el] ? 0 : max_el;
             }
             else
             {
               mmax[0] = len3;
               evecs[0] = vec_tmp[2] * rsqrtf (len3);
               min_el = len3 <= mmax[min_el] ? 0 : min_el;
-              max_el = len3  > mmax[max_el] ? 0 : max_el;	  
+              max_el = len3  > mmax[max_el] ? 0 : max_el;
             }
 
             unsigned mid_el = 3 - min_el - max_el;
@@ -473,19 +473,19 @@ namespace pcl
         __device__  __forceinline__ static bool isMuchSmallerThan (float x, float y)
         {
             // copied from <eigen>/include/Eigen/src/Core/NumTraits.h
-            const float prec_sqr = numeric_limits<float>::epsilon() * numeric_limits<float>::epsilon(); 
+            const float prec_sqr = numeric_limits<float>::epsilon() * numeric_limits<float>::epsilon();
             return x * x <= prec_sqr * y * y;
         }
-      };   
+      };
 
       struct Block
-          {   
+          {
         static __device__ __forceinline__ unsigned int stride()
             {
               return blockDim.x * blockDim.y * blockDim.z;
         }
 
-            static __device__ __forceinline__ int 
+            static __device__ __forceinline__ int
         flattenedThreadId()
             {
               return threadIdx.z * blockDim.x * blockDim.y + threadIdx.y * blockDim.x + threadIdx.x;
@@ -534,7 +534,7 @@ namespace pcl
                     if (CTA_SIZE >=    4) { buffer[tid] = val = op(val, buffer[tid +   2]); }
                     if (CTA_SIZE >=    2) { buffer[tid] = val = op(val, buffer[tid +   1]); }
                   }
-                  __syncthreads();				
+                  __syncthreads();
                   return buffer[0];
         }
       };
@@ -547,9 +547,9 @@ namespace pcl
           WARP_SIZE     = 1 << LOG_WARP_SIZE,
           STRIDE        = WARP_SIZE
         };
-        
+
         /** \brief Returns the warp lane ID of the calling thread. */
-        static __device__ __forceinline__ unsigned int 
+        static __device__ __forceinline__ unsigned int
         laneId()
         {
               unsigned int ret;
@@ -563,7 +563,7 @@ namespace pcl
           return tid >> LOG_WARP_SIZE;
         }
 
-        static __device__ __forceinline__ 
+        static __device__ __forceinline__
         int laneMaskLt()
         {
   #if (__CUDA_ARCH__ >= 200)
@@ -578,38 +578,38 @@ namespace pcl
         static __device__ __forceinline__ int binaryExclScan(int ballot_mask)
         {
           return __popc(Warp::laneMaskLt() & ballot_mask);
-        }   
+        }
       };
 
 
       struct Emulation
-          {        
+          {
         static __device__ __forceinline__ int
         warp_reduce ( volatile int *ptr , const unsigned int tid)
         {
-          const unsigned int lane = tid & 31; // index of thread in warp (0..31)        
+          const unsigned int lane = tid & 31; // index of thread in warp (0..31)
 
           if (lane < 16)
-          {				
+          {
             int partial = ptr[tid];
 
             ptr[tid] = partial = partial + ptr[tid + 16];
             ptr[tid] = partial = partial + ptr[tid + 8];
             ptr[tid] = partial = partial + ptr[tid + 4];
             ptr[tid] = partial = partial + ptr[tid + 2];
-            ptr[tid] = partial = partial + ptr[tid + 1];            
+            ptr[tid] = partial = partial + ptr[tid + 1];
           }
           return ptr[tid - lane];
         }
 
-            static __forceinline__ __device__ int 
+            static __forceinline__ __device__ int
         Ballot(int predicate, volatile int* cta_buffer)
             {
   #if __CUDA_ARCH__ >= 200
               (void)cta_buffer;
                   return __ballot(predicate);
   #else
-          int tid = Block::flattenedThreadId();				
+          int tid = Block::flattenedThreadId();
                   cta_buffer[tid] = predicate ? (1 << (tid & 31)) : 0;
                   return warp_reduce(cta_buffer, tid);
   #endif
@@ -622,7 +622,7 @@ namespace pcl
               (void)cta_buffer;
                   return __all(predicate);
   #else
-          int tid = Block::flattenedThreadId();				
+          int tid = Block::flattenedThreadId();
                   cta_buffer[tid] = predicate ? 1 : 0;
           return warp_reduce(cta_buffer, tid) == 32;
   #endif

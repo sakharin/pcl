@@ -48,8 +48,8 @@ namespace pcl
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
       __global__ void
-      bilateralKernel (const PtrStepSz<ushort> src, 
-                      PtrStep<ushort> dst, 
+      bilateralKernel (const PtrStepSz<ushort> src,
+                      PtrStep<ushort> dst,
                       float sigma_space2_inv_half, float sigma_color2_inv_half)
       {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
@@ -129,7 +129,7 @@ namespace pcl
               int x = blockIdx.x * blockDim.x + threadIdx.x;
               int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-              if (x < depth.cols && y < depth.rows)		
+              if (x < depth.cols && y < depth.rows)
                       if(depth.ptr(y)[x] > max_distance_mm)
                               depth.ptr(y)[x] = 0;
       }
@@ -161,7 +161,7 @@ namespace pcl
       };
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-      void 
+      void
       truncateDepth(DepthMap& depth, float max_distance)
       {
         dim3 block (32, 8);

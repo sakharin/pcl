@@ -48,7 +48,7 @@
 class Evaluation
 {
 public:
-  typedef boost::shared_ptr<Evaluation> Ptr; 
+  typedef boost::shared_ptr<Evaluation> Ptr;
   typedef /*pcl::gpu::KinfuTracker::PixelRGB*/ pcl::gpu::kinfuLS::PixelRGB RGB;
 
   Evaluation(const std::string& folder);
@@ -56,7 +56,7 @@ public:
   /** \brief Sets file with matches between depth and rgb */
   void setMatchFile(const std::string& file);
 
-  /** \brief Reads rgb frame from the folder   
+  /** \brief Reads rgb frame from the folder
     * \param stamp index of frame to read (stamps are not implemented)
     * \param rgb24
     */

@@ -2,7 +2,7 @@
  * Software License Agreement (BSD License)
  *
  * Copyright (c) 2012 Sudarshan Srinivasan <sudarshan85@gmail.com>
- * 
+ *
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -15,7 +15,7 @@
  *     copyright notice, this list of conditions and the following
  *     disclaimer in the documentation and/or other materials provided
  *     with the distribution.
- * 
+ *
  *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
@@ -70,74 +70,74 @@ static int counter = 1;
 class MapsBuffer
 {
   public:
-    
+
     struct PixelRGB
     {
       unsigned char r, g, b;
     };
-    
+
     struct MapsRgb
     {
       pcl::gpu::PtrStepSz<const PixelRGB> rgb_;
-      pcl::gpu::PtrStepSz<const unsigned short> depth_;      
+      pcl::gpu::PtrStepSz<const unsigned short> depth_;
       double time_stamp_;
     };
-    
-    MapsBuffer () {}    
-    
-    bool 
+
+    MapsBuffer () {}
+
+    bool
     pushBack (boost::shared_ptr<const MapsRgb>); // thread-save wrapper for push_back() method of ciruclar_buffer
 
     boost::shared_ptr<const MapsRgb>
     getFront (bool); // thread-save wrapper for front() method of ciruclar_buffer
-                
-    inline bool 
+
+    inline bool
     isFull ()
     {
       boost::mutex::scoped_lock buff_lock (bmutex_);
       return (buffer_.full ());
     }
-                
+
     inline bool
     isEmpty ()
     {
       boost::mutex::scoped_lock buff_lock (bmutex_);
       return (buffer_.empty ());
     }
-                
-    inline int 
+
+    inline int
     getSize ()
     {
       boost::mutex::scoped_lock buff_lock (bmutex_);
       return (int (buffer_.size ()));
     }
-                
-    inline int 
+
+    inline int
     getCapacity ()
     {
       return (int (buffer_.capacity ()));
     }
-                
-    inline void 
+
+    inline void
     setCapacity (int buff_size)
     {
       boost::mutex::scoped_lock buff_lock (bmutex_);
       buffer_.set_capacity (buff_size);
     }
-  
+
   private:
     MapsBuffer (const MapsBuffer&); // Disabled copy constructor
     MapsBuffer& operator =(const MapsBuffer&); // Disabled assignment operator
 
     boost::mutex bmutex_;
     boost::condition_variable buff_empty_;
-    boost::circular_buffer<boost::shared_ptr<const MapsRgb> > buffer_;                                     
+    boost::circular_buffer<boost::shared_ptr<const MapsRgb> > buffer_;
 
 };
 
 
 //////////////////////////////////////////////////////////////////////////////////////////
-bool 
+bool
 MapsBuffer::pushBack(boost::shared_ptr<const MapsRgb> maps_rgb )
 {
   bool retVal = false;
@@ -153,7 +153,7 @@ MapsBuffer::pushBack(boost::shared_ptr<const MapsRgb> maps_rgb )
 
 
 //////////////////////////////////////////////////////////////////////////////////////////
-boost::shared_ptr< const MapsBuffer::MapsRgb > 
+boost::shared_ptr< const MapsBuffer::MapsRgb >
 MapsBuffer::getFront(bool print)
 {
   boost::shared_ptr< const MapsBuffer::MapsRgb > depth_rgb;
@@ -172,10 +172,10 @@ MapsBuffer::getFront(bool print)
     depth_rgb = buffer_.front ();
     buffer_.pop_front ();
   }
-  
+
   if(print)
     PCL_INFO("%d maps left in the buffer...\n", buffer_.size ());
-  
+
   return (depth_rgb);
 }
 
@@ -186,7 +186,7 @@ std::vector<MapsBuffer::PixelRGB> source_image_data_;
 
 
 //////////////////////////////////////////////////////////////////////////////////////////
-void 
+void
 writeToDisk (const boost::shared_ptr<const MapsBuffer::MapsRgb>& map_rbg)
 {
   //save rgb
@@ -194,46 +194,46 @@ writeToDisk (const boost::shared_ptr<const MapsBuffer::MapsRgb>& map_rbg)
   ss.precision(std::numeric_limits<double>::digits10 + 2);
   ss.width(20);
   ss << map_rbg->time_stamp_;
-    
+
   std::string prefix = "./frame-";
   std::string ext = " -rgb.png";
   std::string fname = prefix + ss.str () + ext;
   pcl::io::saveRgbPNGFile (fname, (unsigned char*)map_rbg->rgb_.data, 640,480);
-  
+
   // save depth map
   ext = " -depth.png";
   fname = prefix + ss.str () + ext;
   pcl::io::saveShortPNGFile (fname, (short unsigned int*)map_rbg->depth_.data, 640,480,1);
-  
+
   counter++;
   FPS_CALC ("maps write");
 }
 
 void
 grabberMapsCallBack(const boost::shared_ptr<openni_wrapper::Image>& image_wrapper, const boost::shared_ptr<openni_wrapper::DepthImage>& depth_wrapper, float)
-{  
+{
   MapsBuffer::MapsRgb rgb_depth;
-  rgb_depth.time_stamp_ = pcl::getTime();  
-  
+  rgb_depth.time_stamp_ = pcl::getTime();
+
   // fill in depth values
   rgb_depth.depth_.cols = depth_wrapper->getWidth();
   rgb_depth.depth_.rows = depth_wrapper->getHeight();
   rgb_depth.depth_.step = rgb_depth.depth_.cols * rgb_depth.depth_.elemSize();
   source_depth_data_.resize(rgb_depth.depth_.cols * rgb_depth.depth_.rows);
   depth_wrapper->fillDepthImageRaw(rgb_depth.depth_.cols, rgb_depth.depth_.rows, &source_depth_data_[0]);
-  rgb_depth.depth_.data = &source_depth_data_[0];      
-  
+  rgb_depth.depth_.data = &source_depth_data_[0];
+
   // fill in rgb values
   rgb_depth.rgb_.cols = image_wrapper->getWidth();
   rgb_depth.rgb_.rows = image_wrapper->getHeight();
-  rgb_depth.rgb_.step = rgb_depth.rgb_.cols * rgb_depth.rgb_.elemSize(); 
+  rgb_depth.rgb_.step = rgb_depth.rgb_.cols * rgb_depth.rgb_.elemSize();
   source_image_data_.resize(rgb_depth.rgb_.cols * rgb_depth.rgb_.rows);
   image_wrapper->fillRGB(rgb_depth.rgb_.cols, rgb_depth.rgb_.rows, (unsigned char*)&source_image_data_[0]);
-  rgb_depth.rgb_.data = &source_image_data_[0];    
-  
+  rgb_depth.rgb_.data = &source_image_data_[0];
+
   // make it a shared pointer
   boost::shared_ptr<MapsBuffer::MapsRgb> ptr (new MapsBuffer::MapsRgb (rgb_depth));
-  
+
   // push to buffer
   if (!buff.pushBack (ptr))
   {
@@ -242,13 +242,13 @@ grabberMapsCallBack(const boost::shared_ptr<openni_wrapper::Image>& image_wrappe
       PCL_WARN ("Warning! Buffer was full, overwriting data\n");
     }
   }
-  FPS_CALC ("kinect callback");  
+  FPS_CALC ("kinect callback");
 }
 
 
 //////////////////////////////////////////////////////////////////////////////////////////
 // Procuder thread function
-void 
+void
 grabAndSend ()
 {
   pcl::Grabber* interface = new pcl::OpenNIGrabber ();
@@ -259,7 +259,7 @@ grabAndSend ()
 
   interface->registerCallback (f);
   interface->start ();
-        
+
   while (true)
   {
     if (is_done)
@@ -272,7 +272,7 @@ grabAndSend ()
 
 //////////////////////////////////////////////////////////////////////////////////////////
 // Consumer thread function
-void 
+void
 receiveAndProcess ()
 {
   while (true)
@@ -293,7 +293,7 @@ receiveAndProcess ()
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
-void 
+void
 ctrlC (int)
 {
   boost::mutex::scoped_lock io_lock (io_mutex);
@@ -303,7 +303,7 @@ ctrlC (int)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
-int 
+int
 main (int argc, char** argv)
 {
   int buff_size = BUFFER_SIZE;

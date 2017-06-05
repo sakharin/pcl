@@ -208,7 +208,7 @@ namespace pcl
               blocks_done = 0;
               global_count = 0;
             }
-          } 
+          }
         } /* operator () */
       };
       __global__ void getOccupiedVoxelsKernel (const OccupiedVoxels ov) { ov (); }
@@ -293,7 +293,7 @@ namespace pcl
 
         __device__ __forceinline__ float3
         vertex_interp (float3 p0, float3 p1, float f0, float f1) const
-        {        
+        {
           float t = (isoValue() - f0) / (f1 - f0 + 1e-15f);
           float x = p0.x + t * (p1.x - p0.x);
           float y = p0.y + t * (p1.y - p0.y);

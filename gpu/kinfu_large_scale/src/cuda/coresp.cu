@@ -200,9 +200,9 @@ namespace pcl
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
       void
-      findCoresp (const MapArr& vmap_g_curr, const MapArr& nmap_g_curr, 
+      findCoresp (const MapArr& vmap_g_curr, const MapArr& nmap_g_curr,
                               const Mat33& Rprev_inv, const float3& tprev, const Intr& intr,
-                              const MapArr& vmap_g_prev, const MapArr& nmap_g_prev, 
+                              const MapArr& vmap_g_prev, const MapArr& nmap_g_prev,
                               float distThres, float angleThres, PtrStepSz<short2> coresp)
       {
         CorespSearch cs;

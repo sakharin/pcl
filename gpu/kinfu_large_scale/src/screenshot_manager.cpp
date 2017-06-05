@@ -48,7 +48,7 @@ namespace pcl
   {
       ScreenshotManager::ScreenshotManager()
       {
-        boost::filesystem::path p ("KinFuSnapshots"); 
+        boost::filesystem::path p ("KinFuSnapshots");
         boost::filesystem::create_directory (p);
         screenshot_counter = 0;
         setCameraIntrinsics();
@@ -77,15 +77,15 @@ namespace pcl
 
                     // Write files
                     writePose (filename_pose, teVecs, erreMats);
-          
+
         // Save Image
         pcl::io::saveRgbPNGFile (filename_image, (unsigned char*)rgb24.data, 640,480);
-          
+
         screenshot_counter++;
       }
-      
+
       //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-      
+
       void
       ScreenshotManager::setCameraIntrinsics (float focal, float height, float width)
       {
@@ -95,8 +95,8 @@ namespace pcl
       }
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-      
-      void 
+
+      void
       ScreenshotManager::writePose(const std::string &filename_pose, const Eigen::Vector3f &teVecs, const Eigen::Matrix<float, 3, 3, Eigen::RowMajor> &erreMats)
       {
           std::ofstream poseFile;
@@ -104,8 +104,8 @@ namespace pcl
 
           if (poseFile.is_open())
           {
-            poseFile << "TVector" << std::endl << teVecs << std::endl << std::endl 
-                    << "RMatrix" << std::endl << erreMats << std::endl << std::endl 
+            poseFile << "TVector" << std::endl << teVecs << std::endl << std::endl
+                    << "RMatrix" << std::endl << erreMats << std::endl << std::endl
                     << "Camera Intrinsics: focal height width" << std::endl << focal_ << " " << height_ << " " << width_ << std::endl << std::endl;
             poseFile.close ();
           }
@@ -113,7 +113,7 @@ namespace pcl
           {
             PCL_WARN ("Unable to open/create output file for camera pose!\n");
           }
-        }  
+        }
 
   } // namespace kinfuLS
 } //namespace pcl

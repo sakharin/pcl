@@ -334,7 +334,7 @@ namespace pcl
       {
         resizeMap<true>(input, output);
       }
-      
+
     }
   }
 }
@@ -387,7 +387,7 @@ namespace pcl
         cudaSafeCall ( cudaGetLastError () );
         cudaSafeCall (cudaDeviceSynchronize ());
       }
-      
+
       template void convert (const MapArr& vmap, DeviceArray2D<float4>& output);
       template void convert (const MapArr& vmap, DeviceArray2D<float8>& output);
     }

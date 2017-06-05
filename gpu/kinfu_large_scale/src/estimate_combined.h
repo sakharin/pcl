@@ -3,7 +3,7 @@
  *
  *  Point Cloud Library (PCL) - www.pointclouds.org
  *  Copyright (c) 2011, Willow Garage, Inc.
- * 
+ *
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -41,4 +41,4 @@
 #define ESTIMATE_COMBINED_CUDA_GRID_X 32
 #define ESTIMATE_COMBINED_CUDA_GRID_Y 8
 
-#endif // PCL_GPU_KINFU_LARGE_SCALE_CUDA_ESTIMATE_COMBINED_H_ 
+#endif // PCL_GPU_KINFU_LARGE_SCALE_CUDA_ESTIMATE_COMBINED_H_

@@ -50,8 +50,8 @@ namespace pcl
       {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
-        
-        
+
+
         if (x < VOLUME_X && y < VOLUME_Y)
         {
             T *pos = volume.ptr(y) + x;
@@ -62,43 +62,43 @@ namespace pcl
               pack_tsdf (0.f, 0, *pos);
         }
       }
-      
+
           template<typename T>
       __global__ void
       clearSliceKernel (PtrStep<T> volume, pcl::gpu::kinfuLS::tsdf_buffer buffer, int3 minBounds, int3 maxBounds)
       {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
-            
+
         //compute relative indices
         int idX, idY;
-        
+
         if(x <= minBounds.x)
           idX = x + buffer.voxels_size.x;
         else
           idX = x;
-        
+
         if(y <= minBounds.y)
           idY = y + buffer.voxels_size.y;
         else
-          idY = y;	 
-                
-        
+          idY = y;
+
+
         if ( x < buffer.voxels_size.x && y < buffer.voxels_size.y)
         {
             if( (idX >= minBounds.x && idX <= maxBounds.x) || (idY >= minBounds.y && idY <= maxBounds.y) )
             {
                 // BLACK ZONE => clear on all Z values
-          
-                ///Pointer to the first x,y,0			
+
+                ///Pointer to the first x,y,0
                 T *pos = volume.ptr(y) + x;
-                
+
                 ///Get the step on Z
                 int z_step = buffer.voxels_size.y * volume.step / sizeof(*pos);
-                                    
+
                 ///Get the size of the whole TSDF memory
                 int size = buffer.tsdf_memory_end - buffer.tsdf_memory_start + 1;
-                                  
+
                 ///Move along z axis
       #pragma unroll
                 for(int z = 0; z < buffer.voxels_size.z; ++z, pos+=z_step)
@@ -106,58 +106,58 @@ namespace pcl
                   ///If we went outside of the memory, make sure we go back to the begining of it
                   if(pos > buffer.tsdf_memory_end)
                     pos = pos - size;
-                  
+
                   if (pos >= buffer.tsdf_memory_start && pos <= buffer.tsdf_memory_end) // quickfix for http://dev.pointclouds.org/issues/894
                     pack_tsdf (0.f, 0, *pos);
                 }
             }
             else /* if( idX > maxBounds.x && idY > maxBounds.y)*/
             {
-              
+
                 ///RED ZONE  => clear only appropriate Z
-              
+
                 ///Pointer to the first x,y,0
                 T *pos = volume.ptr(y) + x;
-                
+
                 ///Get the step on Z
                 int z_step = buffer.voxels_size.y * volume.step / sizeof(*pos);
-                            
-                ///Get the size of the whole TSDF memory 
+
+                ///Get the size of the whole TSDF memory
                 int size = buffer.tsdf_memory_end - buffer.tsdf_memory_start + 1;
-                              
+
                 ///Move pointer to the Z origin
                 pos+= minBounds.z * z_step;
-                
+
                 ///If the Z offset is negative, we move the pointer back
                 if(maxBounds.z < 0)
                   pos += maxBounds.z * z_step;
-                  
+
                 ///We make sure that we are not already before the start of the memory
                 if(pos < buffer.tsdf_memory_start)
                     pos = pos + size;
 
                 int nbSteps = abs(maxBounds.z);
-                
-            #pragma unroll				
+
+            #pragma unroll
                 for(int z = 0; z < nbSteps; ++z, pos+=z_step)
                 {
                   ///If we went outside of the memory, make sure we go back to the begining of it
                   if(pos > buffer.tsdf_memory_end)
                     pos = pos - size;
-                  
+
                   if (pos >= buffer.tsdf_memory_start && pos <= buffer.tsdf_memory_end) // quickfix for http://dev.pointclouds.org/issues/894
                     pack_tsdf (0.f, 0, *pos);
                 }
             } //else /* if( idX > maxBounds.x && idY > maxBounds.y)*/
         } // if ( x < VOLUME_X && y < VOLUME_Y)
       } // clearSliceKernel
-   
+
       void
       initVolume (PtrStep<short2> volume)
       {
         dim3 block (16, 16);
         dim3 grid (1, 1, 1);
-        grid.x = divUp (VOLUME_X, block.x);      
+        grid.x = divUp (VOLUME_X, block.x);
         grid.y = divUp (VOLUME_Y, block.y);
 
         initializeVolume<<<grid, block>>>(volume);
@@ -351,16 +351,16 @@ namespace pcl
       //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
       void
       integrateTsdfVolume (const PtrStepSz<ushort>& depth_raw, const Intr& intr, const float3& volume_size,
-                                        const Mat33& Rcurr_inv, const float3& tcurr, float tranc_dist, 
+                                        const Mat33& Rcurr_inv, const float3& tcurr, float tranc_dist,
                                         PtrStep<short2> volume)
       {
         Tsdf tsdf;
 
-        tsdf.volume = volume;  
+        tsdf.volume = volume;
         tsdf.cell_size.x = volume_size.x / VOLUME_X;
         tsdf.cell_size.y = volume_size.y / VOLUME_Y;
         tsdf.cell_size.z = volume_size.z / VOLUME_Z;
-        
+
         tsdf.intr = intr;
 
         tsdf.Rcurr_inv = Rcurr_inv;
@@ -435,10 +435,10 @@ namespace pcl
         float tranc_dist_inv = 1.0f / tranc_dist;
 
         short2* pos = volume.ptr (y) + x;
-        
+
         // shift the pointer to relative indices
         shift_tsdf_pointer(&pos, buffer);
-        
+
         int elem_step = volume.step * buffer.voxels_size.y / sizeof(short2);
 
   //#pragma unroll
@@ -450,11 +450,11 @@ namespace pcl
             v_y += Rcurr_inv_1_z_scaled,
             pos += elem_step)
         {
-          
+
           // As the pointer is incremented in the for loop, we have to make sure that the pointer is never outside the memory
           if(pos > buffer.tsdf_memory_end)
             pos -= (buffer.tsdf_memory_end - buffer.tsdf_memory_start + 1);
-          
+
           float inv_z = 1.0f / (v_z + Rcurr_inv.data[2].z * z_scaled);
           if (inv_z < 0)
               continue;
@@ -550,7 +550,7 @@ namespace pcl
 
                   if (Dp_scaled != 0 && sdf >= -tranc_dist) //meters
                   {
-                      float tsdf = fmin (1.0f, sdf * tranc_dist_inv);                                              
+                      float tsdf = fmin (1.0f, sdf * tranc_dist_inv);
 
                       bool integrate = true;
                       if ((x > 0 &&  x < VOLUME_X-2) && (y > 0 && y < VOLUME_Y-2) && (z > 0 && z < VOLUME_Z-2))
@@ -563,19 +563,19 @@ namespace pcl
                           unpack_tsdf (*(pos + elem_step), Fn, Wn);
                           unpack_tsdf (*(pos - elem_step), Fp, Wp);
 
-                          if (Wn > 16 && Wp > 16) 
+                          if (Wn > 16 && Wp > 16)
                               normal.z = (Fn - Fp)/cell_size.z;
 
                           unpack_tsdf (*(pos + volume.step/sizeof(short2) ), Fn, Wn);
                           unpack_tsdf (*(pos - volume.step/sizeof(short2) ), Fp, Wp);
 
-                          if (Wn > 16 && Wp > 16) 
+                          if (Wn > 16 && Wp > 16)
                               normal.y = (Fn - Fp)/cell_size.y;
 
                           unpack_tsdf (*(pos + 1), Fn, Wn);
                           unpack_tsdf (*(pos - 1), Fp, Wp);
 
-                          if (Wn > 16 && Wp > 16) 
+                          if (Wn > 16 && Wp > 16)
                               normal.x = (Fn - Fp)/cell_size.x;
 
                           if (normal.x != qnan && normal.y != qnan && normal.z != qnan)
@@ -616,7 +616,7 @@ namespace pcl
       //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
       void
       integrateTsdfVolume (const PtrStepSz<ushort>& depth, const Intr& intr,
-                                        const float3& volume_size, const Mat33& Rcurr_inv, const float3& tcurr, 
+                                        const float3& volume_size, const Mat33& Rcurr_inv, const float3& tcurr,
                                         float tranc_dist,
                                         PtrStep<short2> volume, const pcl::gpu::kinfuLS::tsdf_buffer* buffer, DeviceArray2D<float>& depthScaled)
       {
@@ -625,7 +625,7 @@ namespace pcl
         dim3 block_scale (32, 8);
         dim3 grid_scale (divUp (depth.cols, block_scale.x), divUp (depth.rows, block_scale.y));
 
-        //scales depth along ray and converts mm -> meters. 
+        //scales depth along ray and converts mm -> meters.
         scaleDepth<<<grid_scale, block_scale>>>(depth, depthScaled, intr);
         cudaSafeCall ( cudaGetLastError () );
 
@@ -638,7 +638,7 @@ namespace pcl
         dim3 block (16, 16);
         dim3 grid (divUp (buffer->voxels_size.x, block.x), divUp (buffer->voxels_size.y, block.y));
 
-        tsdf23<<<grid, block>>>(depthScaled, volume, tranc_dist, Rcurr_inv, tcurr, intr, cell_size, *buffer);    
+        tsdf23<<<grid, block>>>(depthScaled, volume, tranc_dist, Rcurr_inv, tcurr, intr, cell_size, *buffer);
         //tsdf23normal_hack<<<grid, block>>>(depthScaled, volume, tranc_dist, Rcurr_inv, tcurr, intr, cell_size);
 
         cudaSafeCall ( cudaGetLastError () );
@@ -646,30 +646,30 @@ namespace pcl
       }
 
       /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-      void 
+      void
       clearTSDFSlice (PtrStep<short2> volume, pcl::gpu::kinfuLS::tsdf_buffer* buffer, int shiftX, int shiftY, int shiftZ)
       {
         int newX = buffer->origin_GRID.x + shiftX;
         int newY = buffer->origin_GRID.y + shiftY;
 
         int3 minBounds, maxBounds;
-        
+
         //X
         if(newX >= 0)
         {
         minBounds.x = buffer->origin_GRID.x;
-        maxBounds.x = newX;    
+        maxBounds.x = newX;
         }
         else
         {
-        minBounds.x = newX + buffer->voxels_size.x; 
+        minBounds.x = newX + buffer->voxels_size.x;
         maxBounds.x = buffer->origin_GRID.x + buffer->voxels_size.x;
         }
-        
+
         if(minBounds.x > maxBounds.x)
         std::swap(minBounds.x, maxBounds.x);
-          
-      
+
+
         //Y
         if(newY >= 0)
         {
@@ -678,26 +678,26 @@ namespace pcl
         }
         else
         {
-        minBounds.y = newY + buffer->voxels_size.y; 
+        minBounds.y = newY + buffer->voxels_size.y;
         maxBounds.y = buffer->origin_GRID.y + buffer->voxels_size.y;
         }
-        
+
         if(minBounds.y > maxBounds.y)
         std::swap(minBounds.y, maxBounds.y);
-        
+
         //Z
         minBounds.z = buffer->origin_GRID.z;
         maxBounds.z = shiftZ;
-      
+
         // call kernel
         dim3 block (32, 16);
         dim3 grid (1, 1, 1);
-        grid.x = divUp (buffer->voxels_size.x, block.x);      
+        grid.x = divUp (buffer->voxels_size.x, block.x);
         grid.y = divUp (buffer->voxels_size.y, block.y);
-        
+
         clearSliceKernel<<<grid, block>>>(volume, *buffer, minBounds, maxBounds);
         cudaSafeCall ( cudaGetLastError () );
-        cudaSafeCall (cudaDeviceSynchronize ());        
+        cudaSafeCall (cudaDeviceSynchronize ());
       }
     }
   }
