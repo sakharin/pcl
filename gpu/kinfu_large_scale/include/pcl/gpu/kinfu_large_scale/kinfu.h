@@ -191,6 +191,24 @@ namespace pcl
           void
           getImage (View& view) const;
 
+          /** \brief Renders left 3D scene to display to human
+            * \param[out] view output array with image
+            */
+          void
+          getLImage (View& view) const;
+
+          /** \brief Renders right 3D scene to display to human
+            * \param[out] view output array with image
+            */
+          void
+          getRImage (View& view) const;
+
+          /** \brief Renders anaglyph 3D scene to display to human
+            * \param[out] view output array with image
+            */
+          void
+          getAnaglyphImage (View& view) const;
+
           /** \brief Returns point cloud abserved from last camera pose
             * \param[out] cloud output array for points
             */
@@ -390,6 +408,12 @@ namespace pcl
 
           /** \brief Normal maps pyramid for previous frame in global coordinate space. */
           std::vector<MapArr> nmaps_g_prev_;
+
+          /** \brief Vertex maps pyramid for previous frame in global coordinate space. */
+          std::vector<MapArr> vmaps_g_prev_L_;
+
+          /** \brief Normal maps pyramid for previous frame in global coordinate space. */
+          std::vector<MapArr> nmaps_g_prev_L_;
 
           /** \brief Vertex maps pyramid for current frame in current coordinate space. */
           std::vector<MapArr> vmaps_curr_;

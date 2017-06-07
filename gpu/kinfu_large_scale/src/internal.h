@@ -288,6 +288,17 @@ namespace pcl
       void
       generateImage (const MapArr& vmap, const MapArr& nmap, const LightSource& light, PtrStepSz<uchar3> dst);
 
+      /** \brief Renders anaglyph 3D image of the scene
+        * \param[in] vmapL left vertex map
+        * \param[in] nmapL left normals map
+        * \param[in] vmapR right vertex map
+        * \param[in] nmapR right normals map
+        * \param[in] light pose of light source
+        * \param[out] dst buffer where image is generated
+        */
+      void
+      generateAnaglyphImage (const MapArr& vmapL, const MapArr& nmapL, const MapArr& vmapR, const MapArr& nmapR, const LightSource& light, PtrStepSz<uchar3> dst);
+
 
       /** \brief Renders depth image from give pose
         * \param[in] R_inv inverse camera rotation

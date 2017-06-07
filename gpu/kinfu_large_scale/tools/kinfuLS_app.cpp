@@ -295,10 +295,17 @@ struct ImageView
 {
   ImageView() : paint_image_ (false), accumulate_views_ (false)
   {
-    viewerScene_.setWindowTitle ("View3D from ray tracing");
-    viewerScene_.setPosition (0, 0);
+    viewerScene_L_.setWindowTitle ("View3D from ray tracing for left eye");
+    viewerScene_L_.setPosition (0, 0);
+
+    viewerScene_R_.setWindowTitle ("View3D from ray tracing for right eye");
+    viewerScene_R_.setPosition (640, 0);
+
+    viewerScene_A_.setWindowTitle ("View3D from ray tracing (anaglyph)");
+    viewerScene_A_.setPosition (0, 500);
+
     viewerDepth_.setWindowTitle ("Kinect Depth stream");
-    viewerDepth_.setPosition (640, 0);
+    viewerDepth_.setPosition (640, 500);
     //viewerColor_.setWindowTitle ("Kinect RGB stream");
   }
 
@@ -308,22 +315,31 @@ struct ImageView
     if (pose_ptr)
     {
       raycaster_ptr_->run ( kinfu.volume (), *pose_ptr, kinfu.getCyclicalBufferStructure () ); //says in cmake it does not know it
-      raycaster_ptr_->generateSceneView(view_device_);
+      raycaster_ptr_->generateSceneView(view_device_A_);
+      // TODO raycaster for left eye and anaglyph
     }
     else
     {
-      kinfu.getImage (view_device_);
+      kinfu.getLImage (view_device_L_);
+      kinfu.getRImage (view_device_R_);
+      kinfu.getAnaglyphImage (view_device_A_);
     }
 
     if (paint_image_ && registration && !pose_ptr)
     {
       colors_device_.upload (rgb24.data, rgb24.step, rgb24.rows, rgb24.cols);
-      paint3DView (colors_device_, view_device_);
+      paint3DView (colors_device_, view_device_R_);
+      // TODO paint for left eye and anaglyph
     }
 
     int cols;
-    view_device_.download (view_host_, cols);
-    viewerScene_.showRGBImage (reinterpret_cast<unsigned char*> (&view_host_[0]), view_device_.cols (), view_device_.rows ());
+    view_device_L_.download (view_host_L_, cols);
+    view_device_R_.download (view_host_R_, cols);
+    view_device_A_.download (view_host_A_, cols);
+
+    viewerScene_L_.showRGBImage (reinterpret_cast<unsigned char*> (&view_host_L_[0]), view_device_L_.cols (), view_device_L_.rows ());
+    viewerScene_R_.showRGBImage (reinterpret_cast<unsigned char*> (&view_host_R_[0]), view_device_R_.cols (), view_device_R_.rows ());
+    viewerScene_A_.showRGBImage (reinterpret_cast<unsigned char*> (&view_host_A_[0]), view_device_A_.cols (), view_device_A_.rows ());
 
           //viewerColor_.showRGBImage ((unsigned char*)&rgb24.data, rgb24.cols, rgb24.rows);
 #ifdef HAVE_OPENCV
@@ -365,13 +381,19 @@ struct ImageView
   bool paint_image_;
   bool accumulate_views_;
 
-  visualization::ImageViewer viewerScene_; //view the raycasted model
+  visualization::ImageViewer viewerScene_L_; //view the raycasted model for left eye
+  visualization::ImageViewer viewerScene_R_; //view the raycasted model for right eye
+  visualization::ImageViewer viewerScene_A_; //view the raycasted model as anaglyph
   visualization::ImageViewer viewerDepth_; //view the current depth map
   //visualization::ImageViewer viewerColor_;
 
-  KinfuTracker::View view_device_;
+  KinfuTracker::View view_device_L_;
+  KinfuTracker::View view_device_R_;
+  KinfuTracker::View view_device_A_;
   KinfuTracker::View colors_device_;
-  vector<pcl::gpu::kinfuLS::PixelRGB> view_host_;
+  vector<pcl::gpu::kinfuLS::PixelRGB> view_host_L_;
+  vector<pcl::gpu::kinfuLS::PixelRGB> view_host_R_;
+  vector<pcl::gpu::kinfuLS::PixelRGB> view_host_A_;
 
   RayCaster::Ptr raycaster_ptr_;
 
@@ -399,7 +421,7 @@ struct SceneCloudView
     cloud_viewer_.setBackgroundColor (0, 0, 0);
     cloud_viewer_.addCoordinateSystem (1.0, "global");
     cloud_viewer_.initCameraParameters ();
-    cloud_viewer_.setPosition (0, 500);
+    cloud_viewer_.setPosition (1280, 0);
     cloud_viewer_.setSize (640, 480);
     cloud_viewer_.setCameraClipDistances (0.01, 10.01);
 
@@ -728,7 +750,9 @@ struct KinFuLSApp
     image_view_.raycaster_ptr_ = RayCaster::Ptr( new RayCaster(kinfu_->rows (), kinfu_->cols ()) );
 
     scene_cloud_view_.cloud_viewer_.registerKeyboardCallback (keyboard_callback, (void*)this);
-    image_view_.viewerScene_.registerKeyboardCallback (keyboard_callback, (void*)this);
+    image_view_.viewerScene_L_.registerKeyboardCallback (keyboard_callback, (void*)this);
+    image_view_.viewerScene_R_.registerKeyboardCallback (keyboard_callback, (void*)this);
+    image_view_.viewerScene_A_.registerKeyboardCallback (keyboard_callback, (void*)this);
     image_view_.viewerDepth_.registerKeyboardCallback (keyboard_callback, (void*)this);
 
     scene_cloud_view_.toggleCube(volume_size);
@@ -1003,7 +1027,12 @@ struct KinFuLSApp
       if (!triggered_capture)
         capture_.start ();
 
-      while (!exit_ && !scene_cloud_view_.cloud_viewer_.wasStopped () && !image_view_.viewerScene_.wasStopped () && !this->kinfu_->isFinished ())
+      while (!exit_ &&
+             !scene_cloud_view_.cloud_viewer_.wasStopped () &&
+             !image_view_.viewerScene_L_.wasStopped () &&
+             !image_view_.viewerScene_R_.wasStopped () &&
+             !image_view_.viewerScene_A_.wasStopped () &&
+             !this->kinfu_->isFinished ())
       {
         if (triggered_capture)
           capture_.start(); // Triggers new frame
@@ -1152,7 +1181,7 @@ struct KinFuLSApp
       case (int)'r': case (int)'R': app->kinfu_->reset(); app->scene_cloud_view_.clearClouds(); break;
       case (int)'7': case (int)'8': app->writeMesh (key - (int)'0'); break;
       case (int)'1': case (int)'2': case (int)'3': app->writeCloud (key - (int)'0'); break;
-      case '*': app->image_view_.toggleImagePaint (); break;
+      case (int)'*': app->image_view_.toggleImagePaint (); break;
 
       case (int)'p': case (int)'P': app->kinfu_->setDisableICP(); break;
 

@@ -264,6 +264,8 @@ pcl::gpu::kinfuLS::KinfuTracker::allocateBufffers (int rows, int cols)
 
   vmaps_g_prev_.resize (LEVELS);
   nmaps_g_prev_.resize (LEVELS);
+  vmaps_g_prev_L_.resize (LEVELS);
+  nmaps_g_prev_L_.resize (LEVELS);
 
   vmaps_curr_.resize (LEVELS);
   nmaps_curr_.resize (LEVELS);
@@ -285,6 +287,8 @@ pcl::gpu::kinfuLS::KinfuTracker::allocateBufffers (int rows, int cols)
 
     vmaps_g_prev_[i].create (pyr_rows*3, pyr_cols);
     nmaps_g_prev_[i].create (pyr_rows*3, pyr_cols);
+    vmaps_g_prev_L_[i].create (pyr_rows*3, pyr_cols);
+    nmaps_g_prev_L_[i].create (pyr_rows*3, pyr_cols);
 
     vmaps_curr_[i].create (pyr_rows*3, pyr_cols);
     nmaps_curr_[i].create (pyr_rows*3, pyr_cols);
@@ -652,6 +656,11 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
     last_estimated_rotation_ = current_global_rotation;
   }
 
+  // Left camera rotation and translation
+  Matrix3frm current_global_L_rotation = current_global_rotation;
+  Vector3f left_cam(-0.03, 0, 0);
+  Vector3f current_global_L_translation = left_cam + current_global_translation;//-current_global_rotation.inverse() * left_cam + current_global_translation;
+
   ///////////////////////////////////////////////////////////////////////////////////////////
   // check if we need to shift
   has_shifted_ = cyclical_.checkForShift(tsdf_volume_, getCameraPose (), 0.6 * volume_size_, true, perform_last_scan_); // TODO make target distance from camera a param
@@ -665,6 +674,11 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
   Matrix3frm cam_rot_local_curr_inv = current_global_rotation.inverse (); //rotation (local = global)
   convertTransforms(cam_rot_local_curr_inv, current_global_rotation, current_global_translation, device_current_rotation_inv, device_current_rotation, device_current_translation_local);
   device_current_translation_local -= getCyclicalBufferStructure()->origin_metric;   // translation (local translation = global translation - origin of cube)
+
+  Mat33  device_current_L_rotation;
+  float3 device_current_L_translation_local;
+  convertTransforms(current_global_L_rotation, current_global_L_translation, device_current_L_rotation, device_current_L_translation_local);
+  device_current_L_translation_local -= getCyclicalBufferStructure()->origin_metric;   // translation (local translation = global translation - origin of cube)
 
   ///////////////////////////////////////////////////////////////////////////////////////////
   // Integration check - We do not integrate volume if camera does not move far enought.
@@ -687,18 +701,26 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
     // generate synthetic vertex and normal maps from newly-found pose.
     raycast (intr, device_current_rotation, device_current_translation_local, tsdf_volume_->getTsdfTruncDist (), device_volume_size, tsdf_volume_->data (), getCyclicalBufferStructure (), vmaps_g_prev_[0], nmaps_g_prev_[0]);
 
+    // Ray casting for the left camera
+    raycast (intr, device_current_L_rotation, device_current_L_translation_local, tsdf_volume_->getTsdfTruncDist (), device_volume_size, tsdf_volume_->data (), getCyclicalBufferStructure (), vmaps_g_prev_L_[0], nmaps_g_prev_L_[0]);
+
     // POST-PROCESSING: We need to transform the newly raycasted maps into the global space.
     Mat33&  rotation_id = device_cast<Mat33> (rmats_[0]); /// Identity Rotation Matrix. Because we never rotate our volume
     float3 cube_origin = (getCyclicalBufferStructure ())->origin_metric;
     MapArr& vmap_temp = vmaps_g_prev_[0];
     MapArr& nmap_temp = nmaps_g_prev_[0];
+    MapArr& vmap_temp_L = vmaps_g_prev_L_[0];
+    MapArr& nmap_temp_L = nmaps_g_prev_L_[0];
     transformMaps (vmap_temp, nmap_temp, rotation_id, cube_origin, vmaps_g_prev_[0], nmaps_g_prev_[0]);
+    transformMaps (vmap_temp_L, nmap_temp_L, rotation_id, cube_origin, vmaps_g_prev_L_[0], nmaps_g_prev_L_[0]);
 
     // create pyramid levels for vertex and normal maps
     for (int i = 1; i < LEVELS; ++i)
     {
       resizeVMap (vmaps_g_prev_[i-1], vmaps_g_prev_[i]);
       resizeNMap (nmaps_g_prev_[i-1], nmaps_g_prev_[i]);
+      resizeVMap (vmaps_g_prev_L_[i-1], vmaps_g_prev_L_[i]);
+      resizeNMap (nmaps_g_prev_L_[i-1], nmaps_g_prev_L_[i]);
     }
     pcl::device::kinfuLS::sync ();
   }
@@ -786,6 +808,45 @@ pcl::gpu::kinfuLS::KinfuTracker::getImage (View& view) const
 
   view.create (rows_, cols_);
   generateImage (vmaps_g_prev_[0], nmaps_g_prev_[0], light, view);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::gpu::kinfuLS::KinfuTracker::getLImage (View& view) const
+{
+  //Eigen::Vector3f light_source_pose = tsdf_volume_->getSize() * (-3.f);
+  Eigen::Vector3f light_source_pose = tvecs_[tvecs_.size () - 1];
+
+  LightSource light;
+  light.number = 1;
+  light.pos[0] = device_cast<const float3>(light_source_pose);
+
+  view.create (rows_, cols_);
+  generateImage (vmaps_g_prev_L_[0], nmaps_g_prev_L_[0], light, view);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::gpu::kinfuLS::KinfuTracker::getRImage (View& view) const
+{
+  getImage(view);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::gpu::kinfuLS::KinfuTracker::getAnaglyphImage (View& view) const
+{
+  //Eigen::Vector3f light_source_pose = tsdf_volume_->getSize() * (-3.f);
+  Eigen::Vector3f light_source_pose = tvecs_[tvecs_.size () - 1];
+
+  LightSource light;
+  light.number = 1;
+  light.pos[0] = device_cast<const float3>(light_source_pose);
+
+  view.create (rows_, cols_);
+  generateAnaglyphImage (vmaps_g_prev_L_[0], nmaps_g_prev_L_[0],
+                         vmaps_g_prev_[0],   nmaps_g_prev_[0],
+                         light, view);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////

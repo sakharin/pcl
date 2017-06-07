@@ -132,6 +132,124 @@ namespace pcl
   {
     namespace kinfuLS
     {
+      struct AnaglyphImageGenerator
+      {
+        enum
+        {
+          CTA_SIZE_X = 32, CTA_SIZE_Y = 8
+        };
+
+        PtrStep<float> vmapL;
+        PtrStep<float> nmapL;
+        PtrStep<float> vmapR;
+        PtrStep<float> nmapR;
+
+        LightSource light;
+
+        mutable PtrStepSz<uchar3> dst;
+
+        __device__ __forceinline__ void
+        operator () () const
+        {
+          int x = threadIdx.x + blockIdx.x * CTA_SIZE_X;
+          int y = threadIdx.y + blockIdx.y * CTA_SIZE_Y;
+
+          if (x >= dst.cols || y >= dst.rows)
+            return;
+
+          float3 vL, nL, vR, nR;
+          vL.x = vmapL.ptr (y)[x];
+          nL.x = nmapL.ptr (y)[x];
+          vR.x = vmapR.ptr (y)[x];
+          nR.x = nmapR.ptr (y)[x];
+
+          uchar3 color = make_uchar3 (0, 0, 0);
+		  int brR = 0;
+		  int brL = 0;
+
+		  // Left
+		  if (!isnan (vL.x) && !isnan (nL.x)) {
+            vL.y = vmapL.ptr (y + dst.rows)[x];
+            vL.z = vmapL.ptr (y + 2 * dst.rows)[x];
+
+            nL.y = nmapL.ptr (y + dst.rows)[x];
+            nL.z = nmapL.ptr (y + 2 * dst.rows)[x];
+
+            float weightL = 1.f;
+            for (int i = 0; i < light.number; ++i)
+            {
+              float3 vecL = normalized (light.pos[i] - vL);
+
+              weightL *= fabs (dot (vecL, nL));
+            }
+
+            brL = (int)(205 * weightL) + 50;
+            brL = max (0, min (255, brL));
+		  }
+
+		  // Right
+          if (!isnan (vR.x) && !isnan (nR.x)) {
+            vR.y = vmapR.ptr (y + dst.rows)[x];
+            vR.z = vmapR.ptr (y + 2 * dst.rows)[x];
+
+            nR.y = nmapR.ptr (y + dst.rows)[x];
+            nR.z = nmapR.ptr (y + 2 * dst.rows)[x];
+
+            float weightR = 1.f;
+
+            for (int i = 0; i < light.number; ++i)
+            {
+              float3 vecR = normalized (light.pos[i] - vR);
+
+              weightR *= fabs (dot (vecR, nR));
+            }
+
+            brR = (int)(205 * weightR) + 50;
+            brR = max (0, min (255, brR));
+          }
+
+          color = make_uchar3 (brL, brR, brR);
+          dst.ptr (y)[x] = color;
+        }
+      };
+
+      __global__ void
+      generateAnaglyphImageKernel (const AnaglyphImageGenerator aig) {
+        aig ();
+      }
+
+      void
+      generateAnaglyphImage (const MapArr& vmapL, const MapArr& nmapL,
+			  const MapArr& vmapR, const MapArr& nmapR,
+			  const LightSource& light,
+			  PtrStepSz<uchar3> dst)
+      {
+        AnaglyphImageGenerator aig;
+        aig.vmapL = vmapL;
+        aig.nmapL = nmapL;
+        aig.vmapR = vmapR;
+        aig.nmapR = nmapR;
+        aig.light = light;
+        aig.dst = dst;
+
+        dim3 block (AnaglyphImageGenerator::CTA_SIZE_X, AnaglyphImageGenerator::CTA_SIZE_Y);
+        dim3 grid (divUp (dst.cols, block.x), divUp (dst.rows, block.y));
+
+        generateAnaglyphImageKernel<<<grid, block>>>(aig);
+        cudaSafeCall (cudaGetLastError ());
+        cudaSafeCall (cudaDeviceSynchronize ());
+      }
+    }
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+namespace pcl
+{
+  namespace device
+  {
+    namespace kinfuLS
+    {
       __global__ void generateDepthKernel(const float3 R_inv_row3, const float3 t, const PtrStep<float> vmap, PtrStepSz<unsigned short> depth)
       {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
