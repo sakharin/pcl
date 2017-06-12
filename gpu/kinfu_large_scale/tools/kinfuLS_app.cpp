@@ -103,6 +103,31 @@ namespace pcl
     namespace kinfuLS
     {
       void paint3DView (const KinfuTracker::View& rgb24, KinfuTracker::View& view, float colors_weight = 0.5f);
+      void paint3DViewProj(const KinfuTracker::View& rgb24,
+                           const pcl::device::kinfuLS::Mat33 R_cam_g,
+                           const float3 t_g_cam,
+                           float fx, float fy, float cx, float cy,
+                           const KinfuTracker::MapArr vmaps,
+                           KinfuTracker::View& view, float colors_weight = 0.5f);
+      void paint3DViewProj(const KinfuTracker::View& rgb24,
+                           const pcl::device::kinfuLS::Mat33 R_cam_g,
+                           const float3 t_g_cam,
+                           const pcl::device::kinfuLS::Mat33 R_view_img,
+                           const float3 t_view_img,
+                           float fx, float fy, float cx, float cy,
+                           const KinfuTracker::MapArr vmaps,
+                           KinfuTracker::View& view, float colors_weight = 0.5f);
+      void paint3DViewProj(const KinfuTracker::View& rgb24,
+                           const pcl::device::kinfuLS::Mat33 R_cam_g_L,
+                           const float3 t_g_cam,
+                           const pcl::device::kinfuLS::Mat33 R_view_img,
+                           const float3 t_view_img_R,
+                           const pcl::device::kinfuLS::Mat33 R_cam_g_R,
+                           const float3 t_g_cam_R,
+                           float fx, float fy, float cx, float cy,
+                           const KinfuTracker::MapArr vmapsL,
+                           const KinfuTracker::MapArr vmapsR,
+                           KinfuTracker::View& view, float colors_weight = 0.5f);
       void mergePointNormal (const DeviceArray<PointXYZ>& cloud, const DeviceArray<Normal>& normals, DeviceArray<PointNormal>& output);
     }
   }
@@ -328,8 +353,76 @@ struct ImageView
     if (paint_image_ && registration && !pose_ptr)
     {
       colors_device_.upload (rgb24.data, rgb24.step, rgb24.rows, rgb24.cols);
-      paint3DView (colors_device_, view_device_R_);
+
       // TODO paint for left eye and anaglyph
+      KinfuTracker::Matrix3frm R_L;
+      KinfuTracker::Matrix3frm R_R;
+      KinfuTracker::Matrix3frm R_RL;
+      KinfuTracker::Vector3f t_L;
+      KinfuTracker::Vector3f t_R;
+      KinfuTracker::Vector3f t_RL;
+      KinfuTracker::MapArr vmapsL;
+      KinfuTracker::MapArr vmapsR;
+      float fx, fy, cx, cy;
+      // Hard code
+      // Note: intrinsic of other parts are from Kinect
+      fx = 525;
+      fy = 525;
+      cx = 319.5;
+      cy = 239.5;
+      // TODO Get intrinsic from ONI
+      kinfu.getLeftCameraRotation(R_L);
+      kinfu.getRightCameraRotation(R_R);
+      kinfu.getLeftCameraTranslation(t_L);
+      kinfu.getRightCameraTranslation(t_R);
+      kinfu.getRelativeLeftCameraPose(R_RL, t_RL);
+      kinfu.getVMapL(vmapsL);
+      kinfu.getVMapR(vmapsR);
+
+      // Convert Matrix3frm to Mat33
+      pcl::device::kinfuLS::Mat33 R_L_cam_g;
+      pcl::device::kinfuLS::Mat33 R_R_cam_g;
+      pcl::device::kinfuLS::Mat33 R_relative_RL;
+
+      R_L_cam_g.data[0] = make_float3(R_L(0, 0), R_L(0, 1), R_L(0, 2));
+      R_L_cam_g.data[1] = make_float3(R_L(1, 0), R_L(1, 1), R_L(1, 2));
+      R_L_cam_g.data[2] = make_float3(R_L(2, 0), R_L(2, 1), R_L(2, 2));
+
+      R_R_cam_g.data[0] = make_float3(R_R(0, 0), R_R(0, 1), R_R(0, 2));
+      R_R_cam_g.data[1] = make_float3(R_R(1, 0), R_R(1, 1), R_R(1, 2));
+      R_R_cam_g.data[2] = make_float3(R_R(2, 0), R_R(2, 1), R_R(2, 2));
+
+      R_relative_RL.data[0] = make_float3(R_RL(0, 0), R_RL(0, 1), R_RL(0, 2));
+      R_relative_RL.data[1] = make_float3(R_RL(1, 0), R_RL(1, 1), R_RL(1, 2));
+      R_relative_RL.data[2] = make_float3(R_RL(2, 0), R_RL(2, 1), R_RL(2, 2));
+
+      // Convert Vector3f to float3
+      float3 t_L_cam_g = make_float3(t_L(0), t_L(1), t_L(2));
+      float3 t_R_cam_g = make_float3(t_R(0), t_R(1), t_R(2));
+      float3 t_relative_RL = make_float3(t_RL(0), t_RL(1), t_RL(2));
+
+      /*
+      paint3DView (colors_device_, view_device_R_, 1);
+      */
+      paint3DViewProj(colors_device_,
+                      R_L_cam_g, t_L_cam_g,
+                      R_relative_RL, t_relative_RL,
+                      fx, fy, cx, cy,
+                      vmapsL,
+                      view_device_L_);
+      paint3DViewProj(colors_device_,
+                      R_R_cam_g, t_R_cam_g,
+                      fx, fy, cx, cy,
+                      vmapsR,
+                      view_device_R_);
+      paint3DViewProj(colors_device_,
+                      R_L_cam_g, t_L_cam_g,
+                      R_relative_RL, t_relative_RL,
+                      R_R_cam_g, t_R_cam_g,
+                      fx, fy, cx, cy,
+                      vmapsL,
+                      vmapsR,
+                      view_device_A_, 1);
     }
 
     int cols;
@@ -744,6 +837,7 @@ struct KinFuLSApp
     kinfu_->setIcpCorespFilteringParams (0.1f/*meters*/, sin ( pcl::deg2rad(20.f) ));
     //kinfu_->setDepthTruncationForICP(3.f/*meters*/);
     kinfu_->setCameraMovementThreshold(0.001f);
+    kinfu_->setRelativeLeftCameraPosition(-0.03f, 0.0f, 0.0f);
 
     //Init KinFuLSApp
     tsdf_cloud_ptr_ = pcl::PointCloud<pcl::PointXYZI>::Ptr (new pcl::PointCloud<pcl::PointXYZI>);

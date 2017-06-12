@@ -81,6 +81,12 @@ namespace pcl
           typedef pcl::PointXYZ PointType;
           typedef pcl::Normal NormalType;
 
+          typedef Eigen::Matrix<float, 3, 3, Eigen::RowMajor> Matrix3frm;
+          typedef Eigen::Vector3f Vector3f;
+
+          /** \brief Vertex or Normal Map type */
+          typedef DeviceArray2D<float> MapArr;
+
           void
           performLastScan (){perform_last_scan_ = true; PCL_WARN ("Kinfu will exit after next shift\n");}
 
@@ -131,6 +137,80 @@ namespace pcl
             */
           void
           setCameraMovementThreshold(float threshold = 0.001f);
+
+          /** \brief Sets relative left camera position with respect to the right camera position.
+            * \param[in] x x-value in meters.
+            * \param[in] y y-value in meters.
+            * \param[in] z z-value in meters.
+            */
+          void
+          setRelativeLeftCameraPosition(float x = -0.06f, float y = 0.0f, float z = 0.0f);
+
+          /** \brief Gets relative left camera rotation and translation with respect to the right camera position.
+            * \param[out] rotation 3x3 rotation matrix
+            * \param[out] translation 3x1 translation vector
+            */
+          void getRelativeLeftCameraPose(Matrix3frm& rotation, Vector3f& translation);
+
+          /** \brief Gets global left camera rotation.
+            * \param[out] rotation 3x3 rotation matrix
+            */
+          void getGlobalLeftCameraRotation(Matrix3frm& rotation);
+
+          /** \brief Gets global right camera rotation.
+            * \param[out] rotation 3x3 rotation matrix
+            */
+          void getGlobalRightCameraRotation(Matrix3frm& rotation);
+
+          /** \brief Gets global left camera translation.
+            * \param[out] translation 3x1 translation vector
+            */
+          void getGlobalLeftCameraTranslation(Vector3f& translation);
+
+          /** \brief Gets global right camera translation.
+            * \param[out] translation 3x1 translation vector
+            */
+          void getGlobalRightCameraTranslation(Vector3f& translation);
+
+          /** \brief Gets left camera rotation.
+            * \param[out] rotation 3x3 rotation matrix
+            */
+          void getLeftCameraRotation(Matrix3frm& rotation);
+
+          /** \brief Gets right camera rotation.
+            * \param[out] rotation 3x3 rotation matrix
+            */
+          void getRightCameraRotation(Matrix3frm& rotation);
+
+          /** \brief Gets left camera translation.
+            * \param[out] translation 3x1 translation vector
+            */
+          void getLeftCameraTranslation(Vector3f& translation);
+
+          /** \brief Gets right camera translation.
+            * \param[out] translation 3x1 translation vector
+            */
+          void getRightCameraTranslation(Vector3f& translation);
+
+          /** \brief Gets left vertex map.
+            * \param[out] vmap vertex map
+            */
+          void getVMapL(MapArr& vmaps);
+
+          /** \brief Gets right vertex map.
+            * \param[out] vmap vertex map
+            */
+          void getVMapR(MapArr& vmaps);
+
+          /** \brief Gets left normal map.
+            * \param[out] nmap normal map
+            */
+          void getNMapL(MapArr& nmaps);
+
+          /** \brief Gets right normal map.
+            * \param[out] nmap normal map
+            */
+          void getNMapR(MapArr& nmaps);
 
           /** \brief Performs initialization for color integration. Must be called before calling color integration.
             * \param[in] max_weight max weighe for color integration. -1 means default weight.
@@ -274,12 +354,6 @@ namespace pcl
 
           /** \brief ICP Correspondences  map type */
           typedef DeviceArray2D<int> CorespMap;
-
-          /** \brief Vertex or Normal Map type */
-          typedef DeviceArray2D<float> MapArr;
-
-          typedef Eigen::Matrix<float, 3, 3, Eigen::RowMajor> Matrix3frm;
-          typedef Eigen::Vector3f Vector3f;
 
           /** \brief helper function that converts transforms from host to device types
             * \param[in] transformIn1 first transform to convert
@@ -469,6 +543,32 @@ namespace pcl
           /** \brief Last estimated translation (estimation is done via pairwise alignment when ICP is failing) */
           Vector3f last_estimated_translation_;
 
+          /** \brief Current estimated rotation of the left camera */
+          Matrix3frm current_global_L_rotation_;
+
+          /** \brief Current estimated translation of the left camera */
+          Vector3f current_global_L_translation_;
+
+          /** \brief Current estimated rotation of the right camera */
+          Matrix3frm current_global_R_rotation_;
+
+          /** \brief Current estimated translation of the right camera */
+          Vector3f current_global_R_translation_;
+
+          /** \brief Current estimated inversed rotation of the left camera
+           * (camera to global) */
+          Matrix3frm current_camera_L_rotation_;
+
+          /** \brief Current estimated inversed rotation of the right camera
+           * (camera to global) */
+          Matrix3frm current_camera_R_rotation_;
+
+          /** \brief Relative left camera rotation with respect to the right camera position */
+          Matrix3frm relative_L_camera_rotation_;
+
+          /** \brief Relative left camera translation with respect to the right camera position
+           * (position of left camera with respect to right camera in right camera's frame)*/
+          Vector3f relative_L_camera_translation_;
 
           bool disable_icp_;
 

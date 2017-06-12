@@ -157,6 +157,88 @@ pcl::gpu::kinfuLS::KinfuTracker::setCameraMovementThreshold(float threshold)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void
+pcl::gpu::kinfuLS::KinfuTracker::setRelativeLeftCameraPosition(float x, float y, float z) {
+  relative_L_camera_rotation_ = Eigen::Matrix3f::Identity();
+  relative_L_camera_translation_ = Vector3f(x, y, z);
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::gpu::kinfuLS::KinfuTracker::getRelativeLeftCameraPose(Matrix3frm& rotation, Vector3f& translation) {
+  rotation = relative_L_camera_rotation_;
+  translation = relative_L_camera_translation_;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::gpu::kinfuLS::KinfuTracker::getGlobalLeftCameraRotation(Matrix3frm& rotation) {
+  rotation = current_global_L_rotation_;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::gpu::kinfuLS::KinfuTracker::getGlobalRightCameraRotation(Matrix3frm& rotation) {
+  rotation = current_global_R_rotation_;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::gpu::kinfuLS::KinfuTracker::getGlobalLeftCameraTranslation(Vector3f& translation) {
+  translation = current_global_L_translation_;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::gpu::kinfuLS::KinfuTracker::getGlobalRightCameraTranslation(Vector3f& translation) {
+  translation = current_global_R_translation_;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::gpu::kinfuLS::KinfuTracker::getLeftCameraRotation(Matrix3frm& rotation) {
+  rotation = current_camera_L_rotation_;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::gpu::kinfuLS::KinfuTracker::getRightCameraRotation(Matrix3frm& rotation) {
+  rotation = current_camera_R_rotation_;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::gpu::kinfuLS::KinfuTracker::getLeftCameraTranslation(Vector3f& translation) {
+  translation = -current_global_L_rotation_.inverse() * current_global_L_translation_;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::gpu::kinfuLS::KinfuTracker::getRightCameraTranslation(Vector3f& translation) {
+  translation = -current_global_R_rotation_.inverse() * current_global_R_translation_;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void pcl::gpu::kinfuLS::KinfuTracker::getVMapL(MapArr& vmaps) {
+  vmaps = vmaps_g_prev_L_[0];
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void pcl::gpu::kinfuLS::KinfuTracker::getVMapR(MapArr& vmaps) {
+  vmaps = vmaps_g_prev_[0];
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void pcl::gpu::kinfuLS::KinfuTracker::getNMapL(MapArr& nmaps) {
+  nmaps = nmaps_g_prev_L_[0];
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void pcl::gpu::kinfuLS::KinfuTracker::getNMapR(MapArr& nmaps) {
+  nmaps = nmaps_g_prev_[0];
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void
 pcl::gpu::kinfuLS::KinfuTracker::setIcpCorespFilteringParams (float distThreshold, float sineOfAngle)
 {
   distThres_  = distThreshold; //mm
@@ -623,10 +705,8 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
   Matrix3frm last_known_global_rotation = rmats_[global_time_ - 1];            // [Ri|ti] - pos of camera, i.e.
   Vector3f   last_known_global_translation = tvecs_[global_time_ - 1];          // transform from camera to global coo space for (i-1)th camera pose
   // Declare variables to host ICP results
-  Matrix3frm current_global_rotation;
-  Vector3f current_global_translation;
   // Call ICP
-  if(!performICP(intr, last_known_global_rotation, last_known_global_translation, current_global_rotation, current_global_translation))
+  if(!performICP(intr, last_known_global_rotation, last_known_global_translation, current_global_R_rotation_, current_global_R_translation_))
   {
     // ICP based on synthetic maps failed -> try to estimate the current camera pose based on previous and current raw maps
     Matrix3frm delta_rotation;
@@ -649,17 +729,16 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
   {
     // ICP based on synthetic maps succeeded
     // Save newly-computed pose
-    rmats_.push_back (current_global_rotation);
-    tvecs_.push_back (current_global_translation);
+    rmats_.push_back (current_global_R_rotation_);
+    tvecs_.push_back (current_global_R_translation_);
     // Update last estimated pose to current pairwise ICP result
-    last_estimated_translation_ = current_global_translation;
-    last_estimated_rotation_ = current_global_rotation;
+    last_estimated_translation_ = current_global_R_translation_;
+    last_estimated_rotation_ = current_global_R_rotation_;
   }
 
   // Left camera rotation and translation
-  Matrix3frm current_global_L_rotation = current_global_rotation;
-  Vector3f left_cam(-0.03, 0, 0);
-  Vector3f current_global_L_translation = left_cam + current_global_translation;//-current_global_rotation.inverse() * left_cam + current_global_translation;
+  current_global_L_rotation_ = current_global_R_rotation_ * relative_L_camera_rotation_;
+  current_global_L_translation_ = relative_L_camera_translation_ + current_global_R_translation_;
 
   ///////////////////////////////////////////////////////////////////////////////////////////
   // check if we need to shift
@@ -671,20 +750,29 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
   // get the NEW local pose as device types
   Mat33  device_current_rotation_inv, device_current_rotation;
   float3 device_current_translation_local;
-  Matrix3frm cam_rot_local_curr_inv = current_global_rotation.inverse (); //rotation (local = global)
-  convertTransforms(cam_rot_local_curr_inv, current_global_rotation, current_global_translation, device_current_rotation_inv, device_current_rotation, device_current_translation_local);
+  current_camera_L_rotation_ = current_global_L_rotation_.inverse (); //rotation (local = global)
+  current_camera_R_rotation_ = current_global_R_rotation_.inverse (); //rotation (local = global)
+  convertTransforms(current_camera_R_rotation_,
+                    current_global_R_rotation_,
+                    current_global_R_translation_,
+                    device_current_rotation_inv,
+                    device_current_rotation,
+                    device_current_translation_local);
   device_current_translation_local -= getCyclicalBufferStructure()->origin_metric;   // translation (local translation = global translation - origin of cube)
 
   Mat33  device_current_L_rotation;
   float3 device_current_L_translation_local;
-  convertTransforms(current_global_L_rotation, current_global_L_translation, device_current_L_rotation, device_current_L_translation_local);
+  convertTransforms(current_global_L_rotation_,
+                    current_global_L_translation_,
+                    device_current_L_rotation,
+                    device_current_L_translation_local);
   device_current_L_translation_local -= getCyclicalBufferStructure()->origin_metric;   // translation (local translation = global translation - origin of cube)
 
   ///////////////////////////////////////////////////////////////////////////////////////////
   // Integration check - We do not integrate volume if camera does not move far enought.
   {
-    float rnorm = rodrigues2(current_global_rotation.inverse() * last_known_global_rotation).norm();
-    float tnorm = (current_global_translation - last_known_global_translation).norm();
+    float rnorm = rodrigues2(current_global_R_rotation_.inverse() * last_known_global_rotation).norm();
+    float tnorm = (current_global_R_translation_ - last_known_global_translation).norm();
     const float alpha = 1.f;
     bool integrate = (rnorm + alpha * tnorm)/2 >= integration_metric_threshold_;
     ///////////////////////////////////////////////////////////////////////////////////////////
@@ -911,6 +999,61 @@ namespace pcl
       paint3DView(const KinfuTracker::View& rgb24, KinfuTracker::View& view, float colors_weight = 0.5f)
       {
         pcl::device::kinfuLS::paint3DView(rgb24, view, colors_weight);
+      }
+
+      PCL_EXPORTS void
+      paint3DViewProj(const KinfuTracker::View& rgb24,
+                      const pcl::device::kinfuLS::Mat33 R_cam_g,
+                      const float3 t_g_cam,
+                      float fx, float fy, float cx, float cy,
+                      const KinfuTracker::MapArr vmaps,
+                      KinfuTracker::View& view, float colors_weight = 0.5f)
+      {
+        pcl::device::kinfuLS::paint3DViewProj(rgb24,
+                                              R_cam_g, t_g_cam,
+                                              fx, fy, cx, cy,
+                                              vmaps,
+                                              view, colors_weight);
+      }
+
+      PCL_EXPORTS void
+      paint3DViewProj(const KinfuTracker::View& rgb24,
+                      const pcl::device::kinfuLS::Mat33 R_cam_g,
+                      const float3 t_g_cam,
+                      const pcl::device::kinfuLS::Mat33 R_view_img,
+                      const float3 t_view_img,
+                      float fx, float fy, float cx, float cy,
+                      const KinfuTracker::MapArr vmaps,
+                      KinfuTracker::View& view, float colors_weight = 0.5f)
+      {
+        pcl::device::kinfuLS::paint3DViewProj(rgb24,
+                                              R_cam_g, t_g_cam,
+                                              R_view_img, t_view_img,
+                                              fx, fy, cx, cy,
+                                              vmaps,
+                                              view, colors_weight);
+      }
+
+      PCL_EXPORTS void
+      paint3DViewProj(const KinfuTracker::View& rgb24,
+                      const pcl::device::kinfuLS::Mat33 R_cam_g_L,
+                      const float3 t_g_cam_L,
+                      const pcl::device::kinfuLS::Mat33 R_view_img,
+                      const float3 t_view_img,
+                      const pcl::device::kinfuLS::Mat33 R_cam_g_R,
+                      const float3 t_g_cam_R,
+                      float fx, float fy, float cx, float cy,
+                      const KinfuTracker::MapArr vmapsL,
+                      const KinfuTracker::MapArr vmapsR,
+                      KinfuTracker::View& view, float colors_weight = 0.5f)
+      {
+        pcl::device::kinfuLS::paint3DViewProj(rgb24,
+                                              R_cam_g_L, t_g_cam_L,
+                                              R_view_img, t_view_img,
+                                              R_cam_g_R, t_g_cam_R,
+                                              fx, fy, cx, cy,
+                                              vmapsR, vmapsL,
+                                              view, colors_weight);
       }
 
       PCL_EXPORTS void

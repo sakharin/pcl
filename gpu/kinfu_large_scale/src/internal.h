@@ -317,6 +317,62 @@ namespace pcl
       void
       paint3DView(const PtrStep<uchar3>& colors, PtrStepSz<uchar3> dst, float colors_weight = 0.5f);
 
+      /** \brief Paints 3D view with color map
+        * \param[in] colors rgb color frame from OpenNI
+        * \param[in] R_cam_g rotation matrix from global to camera
+        * \param[in] t_g_cam translation vector of global frame
+        * \param[in] vmaps vertex map
+        * \param[out] dst output 3D view
+        * \param[in] colors_weight weight for colors
+        */
+      void
+      paint3DViewProj(const PtrStep<uchar3>& colors,
+                      const Mat33 R_cam_g, const float3 t_g_cam,
+                      float fx, float fy, float cx, float cy,
+                      const MapArr vmap,
+                      PtrStepSz<uchar3> dst, float colors_weight = 0.5f);
+
+      /** \brief Paints 3D view with color map
+        * \param[in] colors rgb color frame from OpenNI
+        * \param[in] R_cam_g rotation matrix from global to camera
+        * \param[in] t_g_cam translation vector of global frame
+        * \param[in] R_view_img relative rotation matrix from image to camera
+        * \param[in] t_view_img relative translation vector from image to camera
+        * \param[in] vmaps vertex map
+        * \param[out] dst output 3D view
+        * \param[in] colors_weight weight for colors
+        */
+      void
+      paint3DViewProj(const PtrStep<uchar3>& colors,
+                      const Mat33 R_cam_g, const float3 t_g_cam,
+                      const Mat33 R_view_img, const float3 t_view_img,
+                      float fx, float fy, float cx, float cy,
+                      const MapArr vmap,
+                      PtrStepSz<uchar3> dst, float colors_weight = 0.5f);
+
+      /** \brief Paints 3D view with color map
+        * \param[in] colors rgb color frame from OpenNI
+        * \param[in] R_cam_g_L rotation matrix from global to camera
+        * \param[in] t_g_cam_L translation vector of global frame
+        * \param[in] R_view_img relative rotation matrix from image to camera
+        * \param[in] t_view_img relative translation vector from image to camera
+        * \param[in] R_cam_g_R rotation matrix from global to camera
+        * \param[in] t_g_cam_R translation vector of global frame
+        * \param[in] vmapsL vertex map
+        * \param[in] vmapsR vertex map
+        * \param[out] dst output 3D view
+        * \param[in] colors_weight weight for colors
+        */
+      void
+      paint3DViewProj(const PtrStep<uchar3>& colors,
+                      const Mat33 R_cam_g_L, const float3 t_g_cam_L,
+                      const Mat33 R_view_img, const float3 t_view_img,
+                      const Mat33 R_cam_g_R, const float3 t_g_cam_R,
+                      float fx, float fy, float cx, float cy,
+                      const MapArr vmapL,
+                      const MapArr vmapR,
+                      PtrStepSz<uchar3> dst, float colors_weight = 0.5f);
+
       /** \brief Performs resize of vertex map to next pyramid level by averaging each four points
         * \param[in] input vertext map
         * \param[out] output resized vertex map
