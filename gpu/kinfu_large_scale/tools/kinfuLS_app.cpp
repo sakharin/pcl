@@ -809,7 +809,7 @@ struct KinFuLSApp
 {
   enum { PCD_BIN = 1, PCD_ASCII = 2, PLY = 3, MESH_PLY = 7, MESH_VTK = 8 };
 
-  KinFuLSApp(pcl::Grabber& source, float vsz, float shiftDistance, int snapshotRate) : exit_ (false), scan_ (false), scan_mesh_(false), scan_volume_ (false), independent_camera_ (false),
+  KinFuLSApp(pcl::Grabber& source, float vsz, float shiftDistance, int snapshotRate) : exit_ (false), scan_ (false), scan_mesh_(false), scan_volume_ (false), pause_(false), triggered_capture_(true), independent_camera_ (false),
           registration_ (false), integrate_colors_ (false), pcd_source_ (false), focal_length_(-1.f), capture_ (source), was_lost_(false), time_ms_ (0)
   {
     //Init Kinfu Tracker
@@ -917,6 +917,15 @@ struct KinFuLSApp
 
     kinfu_->setDepthIntrinsics (evaluation_ptr_->fx, evaluation_ptr_->fy, evaluation_ptr_->cx, evaluation_ptr_->cy);
     image_view_.raycaster_ptr_ = RayCaster::Ptr( new RayCaster(kinfu_->rows (), kinfu_->cols (), evaluation_ptr_->fx, evaluation_ptr_->fy, evaluation_ptr_->cx, evaluation_ptr_->cy) );
+  }
+
+  void toggleCapture()
+  {
+    pause_ = !pause_;
+    if (triggered_capture_ && pause_)
+      cout << "Pause" << endl;
+    else if (triggered_capture_ && !pause_)
+      cout << "Play" << endl;
   }
 
   void execute(const PtrStepSz<const unsigned short>& depth, const PtrStepSz<const pcl::gpu::kinfuLS::PixelRGB>& rgb24, bool has_data)
@@ -1099,6 +1108,7 @@ struct KinFuLSApp
   void
   startMainLoop (bool triggered_capture)
   {
+    triggered_capture_ = triggered_capture;
     using namespace openni_wrapper;
     typedef boost::shared_ptr<DepthImage> DepthImagePtr;
     typedef boost::shared_ptr<Image>      ImagePtr;
@@ -1118,7 +1128,7 @@ struct KinFuLSApp
     {
       boost::unique_lock<boost::mutex> lock(data_ready_mutex_);
 
-      if (!triggered_capture)
+      if (!triggered_capture_)
         capture_.start ();
 
       while (!exit_ &&
@@ -1128,7 +1138,7 @@ struct KinFuLSApp
              !image_view_.viewerScene_A_.wasStopped () &&
              !this->kinfu_->isFinished ())
       {
-        if (triggered_capture)
+        if (triggered_capture_ && !pause_)
           capture_.start(); // Triggers new frame
 
         bool has_data = data_ready_cond_.timed_wait (lock, boost::posix_time::millisec(100));
@@ -1143,7 +1153,7 @@ struct KinFuLSApp
       exit_ = true;
       boost::this_thread::sleep (boost::posix_time::millisec (100));
 
-      if (!triggered_capture)
+      if (!triggered_capture_)
         capture_.stop (); // Stop stream
     }
     c.disconnect();
@@ -1191,6 +1201,7 @@ struct KinFuLSApp
     cout << "=================" << endl;
     cout << "    H    : print this help" << endl;
     cout << "   Esc   : exit" << endl;
+    cout << " <space> : pause" << endl;
     cout << "    T    : take cloud" << endl;
     cout << "    A    : take mesh" << endl;
     cout << "    M    : toggle cloud exctraction mode" << endl;
@@ -1211,6 +1222,8 @@ struct KinFuLSApp
   bool scan_;
   bool scan_mesh_;
   bool scan_volume_;
+  bool pause_;
+  bool triggered_capture_;
 
   bool independent_camera_;
   int frame_counter_;
@@ -1262,6 +1275,7 @@ struct KinFuLSApp
       switch (key)
       {
       case 27: app->exit_ = true; break;
+      case 32: app->toggleCapture(); break;
       case (int)'t': case (int)'T': app->scan_ = true; break;
       case (int)'a': case (int)'A': app->scan_mesh_ = true; break;
       case (int)'h': case (int)'H': app->printHelp (); break;
