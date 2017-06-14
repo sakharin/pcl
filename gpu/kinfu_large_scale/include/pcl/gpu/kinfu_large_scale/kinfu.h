@@ -155,42 +155,42 @@ namespace pcl
           /** \brief Gets global left camera rotation.
             * \param[out] rotation 3x3 rotation matrix
             */
-          void getGlobalLeftCameraRotation(Matrix3frm& rotation);
+          void getGlobalLeftCameraRotation(Matrix3frm& rotation, int index=-1);
 
           /** \brief Gets global right camera rotation.
             * \param[out] rotation 3x3 rotation matrix
             */
-          void getGlobalRightCameraRotation(Matrix3frm& rotation);
+          void getGlobalRightCameraRotation(Matrix3frm& rotation, int index=-1);
 
           /** \brief Gets global left camera translation.
             * \param[out] translation 3x1 translation vector
             */
-          void getGlobalLeftCameraTranslation(Vector3f& translation);
+          void getGlobalLeftCameraTranslation(Vector3f& translation, int index=-1);
 
           /** \brief Gets global right camera translation.
             * \param[out] translation 3x1 translation vector
             */
-          void getGlobalRightCameraTranslation(Vector3f& translation);
+          void getGlobalRightCameraTranslation(Vector3f& translation, int index=-1);
 
           /** \brief Gets left camera rotation.
             * \param[out] rotation 3x3 rotation matrix
             */
-          void getLeftCameraRotation(Matrix3frm& rotation);
+          void getLeftCameraRotation(Matrix3frm& rotation, int index=-1);
 
           /** \brief Gets right camera rotation.
             * \param[out] rotation 3x3 rotation matrix
             */
-          void getRightCameraRotation(Matrix3frm& rotation);
+          void getRightCameraRotation(Matrix3frm& rotation, int index=-1);
 
           /** \brief Gets left camera translation.
             * \param[out] translation 3x1 translation vector
             */
-          void getLeftCameraTranslation(Vector3f& translation);
+          void getLeftCameraTranslation(Vector3f& translation, int index=-1);
 
           /** \brief Gets right camera translation.
             * \param[out] translation 3x1 translation vector
             */
-          void getRightCameraTranslation(Vector3f& translation);
+          void getRightCameraTranslation(Vector3f& translation, int index=-1);
 
           /** \brief Gets left vertex map.
             * \param[out] vmap vertex map
@@ -563,12 +563,27 @@ namespace pcl
            * (camera to global) */
           Matrix3frm current_camera_R_rotation_;
 
+          /** \brief Current estimated inversed translation of the left camera */
+          Vector3f current_camera_L_translation_;
+
+          /** \brief Current estimated inversed translation of the right camera */
+          Vector3f current_camera_R_translation_;
+
           /** \brief Relative left camera rotation with respect to the right camera position */
           Matrix3frm relative_L_camera_rotation_;
 
           /** \brief Relative left camera translation with respect to the right camera position
            * (position of left camera with respect to right camera in right camera's frame)*/
           Vector3f relative_L_camera_translation_;
+
+          std::vector<Matrix3frm> R_L_cam_g_;
+          std::vector<Matrix3frm> R_R_cam_g_;
+          std::vector<Matrix3frm> R_L_g_cam_;
+          std::vector<Matrix3frm> R_R_g_cam_;
+          std::vector<Vector3f> t_L_cam_g_;
+          std::vector<Vector3f> t_R_cam_g_;
+          std::vector<Vector3f> t_L_g_cam_;
+          std::vector<Vector3f> t_R_g_cam_;
 
           bool disable_icp_;
 

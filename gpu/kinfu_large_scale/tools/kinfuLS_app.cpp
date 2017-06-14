@@ -318,7 +318,7 @@ struct CurrentFrameCloudView
 
 struct ImageView
 {
-  ImageView() : paint_image_ (false), accumulate_views_ (false)
+  ImageView() : paint_image_ (true), accumulate_views_ (false)
   {
     viewerScene_L_.setWindowTitle ("View3D from ray tracing for left eye");
     viewerScene_L_.setPosition (0, 0);
@@ -335,7 +335,15 @@ struct ImageView
   }
 
   void
-  showScene (KinfuTracker& kinfu, const PtrStepSz<const pcl::gpu::kinfuLS::PixelRGB>& rgb24, bool registration, Eigen::Affine3f* pose_ptr = 0)
+  convR(KinfuTracker::Matrix3frm R1, pcl::device::kinfuLS::Mat33& R2)
+  {
+    R2.data[0] = make_float3(R1(0, 0), R1(0, 1), R1(0, 2));
+    R2.data[1] = make_float3(R1(1, 0), R1(1, 1), R1(1, 2));
+    R2.data[2] = make_float3(R1(2, 0), R1(2, 1), R1(2, 2));
+  }
+
+  void
+  showScene (KinfuTracker& kinfu, int frame_counter, bool* pause, const PtrStepSz<const pcl::gpu::kinfuLS::PixelRGB>& rgb24, bool registration, Eigen::Affine3f* pose_ptr = 0)
   {
     if (pose_ptr)
     {
@@ -370,6 +378,7 @@ struct ImageView
       fy = 525;
       cx = 319.5;
       cy = 239.5;
+
       // TODO Get intrinsic from ONI
       kinfu.getLeftCameraRotation(R_L);
       kinfu.getRightCameraRotation(R_R);
@@ -384,17 +393,9 @@ struct ImageView
       pcl::device::kinfuLS::Mat33 R_R_cam_g;
       pcl::device::kinfuLS::Mat33 R_relative_RL;
 
-      R_L_cam_g.data[0] = make_float3(R_L(0, 0), R_L(0, 1), R_L(0, 2));
-      R_L_cam_g.data[1] = make_float3(R_L(1, 0), R_L(1, 1), R_L(1, 2));
-      R_L_cam_g.data[2] = make_float3(R_L(2, 0), R_L(2, 1), R_L(2, 2));
-
-      R_R_cam_g.data[0] = make_float3(R_R(0, 0), R_R(0, 1), R_R(0, 2));
-      R_R_cam_g.data[1] = make_float3(R_R(1, 0), R_R(1, 1), R_R(1, 2));
-      R_R_cam_g.data[2] = make_float3(R_R(2, 0), R_R(2, 1), R_R(2, 2));
-
-      R_relative_RL.data[0] = make_float3(R_RL(0, 0), R_RL(0, 1), R_RL(0, 2));
-      R_relative_RL.data[1] = make_float3(R_RL(1, 0), R_RL(1, 1), R_RL(1, 2));
-      R_relative_RL.data[2] = make_float3(R_RL(2, 0), R_RL(2, 1), R_RL(2, 2));
+      convR(R_L, R_L_cam_g);
+      convR(R_R, R_R_cam_g);
+      convR(R_RL, R_relative_RL);
 
       // Convert Vector3f to float3
       float3 t_L_cam_g = make_float3(t_L(0), t_L(1), t_L(2));
@@ -434,12 +435,17 @@ struct ImageView
     viewerScene_R_.showRGBImage (reinterpret_cast<unsigned char*> (&view_host_R_[0]), view_device_R_.cols (), view_device_R_.rows ());
     viewerScene_A_.showRGBImage (reinterpret_cast<unsigned char*> (&view_host_A_[0]), view_device_A_.cols (), view_device_A_.rows ());
 
-          //viewerColor_.showRGBImage ((unsigned char*)&rgb24.data, rgb24.cols, rgb24.rows);
+    // Save png file
+    if (frame_counter >= 1) {
+      //pcl::io::saveRgbPNGFile("./tmp.png", reinterpret_cast<unsigned char*> (&view_host_A_[0]), view_device_A_.cols (), view_device_A_.rows ());
+      //*pause = true;
+    }
+    //viewerColor_.showRGBImage ((unsigned char*)&rgb24.data, rgb24.cols, rgb24.rows);
 #ifdef HAVE_OPENCV
     if (accumulate_views_)
     {
       views_.push_back (cv::Mat ());
-      cv::cvtColor (cv::Mat (480, 640, CV_8UC3, (void*)&view_host_[0]), views_.back (), CV_RGB2GRAY);
+      cv::cvtColor (cv::Mat (480, 640, CV_8UC3, (void*)&view_host_A_[0]), views_.back (), CV_RGB2GRAY);
       //cv::copy(cv::Mat(480, 640, CV_8UC3, (void*)&view_host_[0]), views_.back());
     }
 #endif
@@ -953,7 +959,6 @@ struct KinFuLSApp
 
       image_view_.showDepth (depth_);
       //image_view_.showGeneratedDepth(kinfu_, kinfu_->getCameraPose());
-
     }
 
     if (scan_ || (!was_lost_ && kinfu_->icpIsLost ()) ) //if scan mode is OR and ICP just lost itself => show current volume as point cloud
@@ -981,7 +986,6 @@ struct KinFuLSApp
         cout << "[!] tsdf volume download is disabled" << endl << endl;
     }
 
-
     if (scan_mesh_)
     {
       scan_mesh_ = false;
@@ -991,7 +995,8 @@ struct KinFuLSApp
     if (has_image)
     {
       Eigen::Affine3f viewer_pose = getViewerPose(scene_cloud_view_.cloud_viewer_);
-      image_view_.showScene (*kinfu_, rgb24, registration_, independent_camera_ ? &viewer_pose : 0);
+      image_view_.showScene (*kinfu_, frame_counter_, &pause_, rgb24, registration_, independent_camera_ ? &viewer_pose : 0);
+
     }
 
     if (current_frame_cloud_view_)
@@ -1127,6 +1132,12 @@ struct KinFuLSApp
 
     {
       boost::unique_lock<boost::mutex> lock(data_ready_mutex_);
+
+      if (triggered_capture_) {
+        capture_.start();
+        capture_.stop();
+        data_ready_cond_.timed_wait (lock, boost::posix_time::millisec(100));
+      }
 
       if (!triggered_capture_)
         capture_.start ();
@@ -1495,21 +1506,21 @@ main (int argc, char* argv[])
   catch (const std::bad_alloc& /*e*/) { cout << "Bad alloc" << endl; }
   catch (const std::exception& /*e*/) { cout << "Exception" << endl; }
 
-  //~ #ifdef HAVE_OPENCV
-  //~ for (size_t t = 0; t < app.image_view_.views_.size (); ++t)
-  //~ {
-  //~ if (t == 0)
-  //~ {
-  //~ cout << "Saving depth map of first view." << endl;
-  //~ cv::imwrite ("./depthmap_1stview.png", app.image_view_.views_[0]);
-  //~ cout << "Saving sequence of (" << app.image_view_.views_.size () << ") views." << endl;
-  //~ }
-  //~ char buf[4096];
-  //~ sprintf (buf, "./%06d.png", (int)t);
-  //~ cv::imwrite (buf, app.image_view_.views_[t]);
-  //~ printf ("writing: %s\n", buf);
-  //~ }
-  //~ #endif
+#ifdef HAVE_OPENCV
+  for (size_t t = 0; t < app.image_view_.views_.size (); ++t)
+  {
+    if (t == 0)
+    {
+      cout << "Saving depth map of first view." << endl;
+      cv::imwrite ("./depthmap_1stview.png", app.image_view_.views_[0]);
+      cout << "Saving sequence of (" << app.image_view_.views_.size () << ") views." << endl;
+    }
+    char buf[4096];
+    sprintf (buf, "./%06d.png", (int)t);
+    cv::imwrite (buf, app.image_view_.views_[t]);
+    printf ("writing: %s\n", buf);
+  }
+#endif
   std::cout << "pcl_kinfu_largeScale exiting...\n";
   return 0;
 }
