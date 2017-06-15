@@ -793,7 +793,7 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
 
   // Left camera rotation and translation
   current_global_L_rotation_ = current_global_R_rotation_ * relative_L_camera_rotation_;
-  current_global_L_translation_ = current_global_R_translation_ + relative_L_camera_translation_;
+  current_global_L_translation_ = current_global_R_rotation_ * relative_L_camera_translation_ + current_global_R_translation_;
 
   float3 o = getCyclicalBufferStructure()->origin_metric;
   Vector3f origin(o.x, o.y, o.z);
@@ -1077,13 +1077,13 @@ namespace pcl
       PCL_EXPORTS void
       paint3DViewProj(const KinfuTracker::View& rgb24,
                       const pcl::device::kinfuLS::Mat33 R_cam_g,
-                      const float3 t_g_cam,
+                      const float3 t_cam_g,
                       float fx, float fy, float cx, float cy,
                       const KinfuTracker::MapArr vmaps,
                       KinfuTracker::View& view, float colors_weight = 0.5f)
       {
         pcl::device::kinfuLS::paint3DViewProj(rgb24,
-                                              R_cam_g, t_g_cam,
+                                              R_cam_g, t_cam_g,
                                               fx, fy, cx, cy,
                                               vmaps,
                                               view, colors_weight);
@@ -1092,7 +1092,7 @@ namespace pcl
       PCL_EXPORTS void
       paint3DViewProj(const KinfuTracker::View& rgb24,
                       const pcl::device::kinfuLS::Mat33 R_cam_g,
-                      const float3 t_g_cam,
+                      const float3 t_cam_g,
                       const pcl::device::kinfuLS::Mat33 R_view_img,
                       const float3 t_view_img,
                       float fx, float fy, float cx, float cy,
@@ -1100,7 +1100,7 @@ namespace pcl
                       KinfuTracker::View& view, float colors_weight = 0.5f)
       {
         pcl::device::kinfuLS::paint3DViewProj(rgb24,
-                                              R_cam_g, t_g_cam,
+                                              R_cam_g, t_cam_g,
                                               R_view_img, t_view_img,
                                               fx, fy, cx, cy,
                                               vmaps,
@@ -1110,20 +1110,20 @@ namespace pcl
       PCL_EXPORTS void
       paint3DViewProj(const KinfuTracker::View& rgb24,
                       const pcl::device::kinfuLS::Mat33 R_cam_g_L,
-                      const float3 t_g_cam_L,
+                      const float3 t_cam_g_L,
                       const pcl::device::kinfuLS::Mat33 R_view_img,
                       const float3 t_view_img,
                       const pcl::device::kinfuLS::Mat33 R_cam_g_R,
-                      const float3 t_g_cam_R,
+                      const float3 t_cam_g_R,
                       float fx, float fy, float cx, float cy,
                       const KinfuTracker::MapArr vmapsL,
                       const KinfuTracker::MapArr vmapsR,
                       KinfuTracker::View& view, float colors_weight = 0.5f)
       {
         pcl::device::kinfuLS::paint3DViewProj(rgb24,
-                                              R_cam_g_L, t_g_cam_L,
+                                              R_cam_g_L, t_cam_g_L,
                                               R_view_img, t_view_img,
-                                              R_cam_g_R, t_g_cam_R,
+                                              R_cam_g_R, t_cam_g_R,
                                               fx, fy, cx, cy,
                                               vmapsR, vmapsL,
                                               view, colors_weight);

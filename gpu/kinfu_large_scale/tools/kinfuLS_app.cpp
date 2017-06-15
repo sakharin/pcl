@@ -105,13 +105,13 @@ namespace pcl
       void paint3DView (const KinfuTracker::View& rgb24, KinfuTracker::View& view, float colors_weight = 0.5f);
       void paint3DViewProj(const KinfuTracker::View& rgb24,
                            const pcl::device::kinfuLS::Mat33 R_cam_g,
-                           const float3 t_g_cam,
+                           const float3 t_cam_g,
                            float fx, float fy, float cx, float cy,
                            const KinfuTracker::MapArr vmaps,
                            KinfuTracker::View& view, float colors_weight = 0.5f);
       void paint3DViewProj(const KinfuTracker::View& rgb24,
                            const pcl::device::kinfuLS::Mat33 R_cam_g,
-                           const float3 t_g_cam,
+                           const float3 t_cam_g,
                            const pcl::device::kinfuLS::Mat33 R_view_img,
                            const float3 t_view_img,
                            float fx, float fy, float cx, float cy,
@@ -119,11 +119,11 @@ namespace pcl
                            KinfuTracker::View& view, float colors_weight = 0.5f);
       void paint3DViewProj(const KinfuTracker::View& rgb24,
                            const pcl::device::kinfuLS::Mat33 R_cam_g_L,
-                           const float3 t_g_cam,
+                           const float3 t_cam_g_L,
                            const pcl::device::kinfuLS::Mat33 R_view_img,
                            const float3 t_view_img_R,
                            const pcl::device::kinfuLS::Mat33 R_cam_g_R,
-                           const float3 t_g_cam_R,
+                           const float3 t_cam_g_R,
                            float fx, float fy, float cx, float cy,
                            const KinfuTracker::MapArr vmapsL,
                            const KinfuTracker::MapArr vmapsR,
@@ -343,6 +343,12 @@ struct ImageView
   }
 
   void
+  convt(KinfuTracker::Vector3f t1, float3& t2)
+  {
+    t2 = make_float3(t1(0), t1(1), t1(2));
+  }
+
+  void
   showScene (KinfuTracker& kinfu, int frame_counter, bool* pause, const PtrStepSz<const pcl::gpu::kinfuLS::PixelRGB>& rgb24, bool registration, Eigen::Affine3f* pose_ptr = 0)
   {
     if (pose_ptr)
@@ -362,7 +368,6 @@ struct ImageView
     {
       colors_device_.upload (rgb24.data, rgb24.step, rgb24.rows, rgb24.cols);
 
-      // TODO paint for left eye and anaglyph
       KinfuTracker::Matrix3frm R_L;
       KinfuTracker::Matrix3frm R_R;
       KinfuTracker::Matrix3frm R_RL;
@@ -371,15 +376,12 @@ struct ImageView
       KinfuTracker::Vector3f t_RL;
       KinfuTracker::MapArr vmapsL;
       KinfuTracker::MapArr vmapsR;
-      float fx, fy, cx, cy;
+
       // Hard code
       // Note: intrinsic of other parts are from Kinect
-      fx = 525;
-      fy = 525;
-      cx = 319.5;
-      cy = 239.5;
-
       // TODO Get intrinsic from ONI
+      float fx = 575, fy = 575, cx = 319.5, cy = 239.5;
+
       kinfu.getLeftCameraRotation(R_L);
       kinfu.getRightCameraRotation(R_R);
       kinfu.getLeftCameraTranslation(t_L);
@@ -398,9 +400,12 @@ struct ImageView
       convR(R_RL, R_relative_RL);
 
       // Convert Vector3f to float3
-      float3 t_L_cam_g = make_float3(t_L(0), t_L(1), t_L(2));
-      float3 t_R_cam_g = make_float3(t_R(0), t_R(1), t_R(2));
-      float3 t_relative_RL = make_float3(t_RL(0), t_RL(1), t_RL(2));
+      float3 t_L_cam_g;
+      float3 t_R_cam_g;
+      float3 t_relative_RL;
+      convt(t_L, t_L_cam_g);
+      convt(t_R, t_R_cam_g);
+      convt(t_RL, t_relative_RL);
 
       /*
       paint3DView (colors_device_, view_device_R_, 1);
@@ -843,7 +848,7 @@ struct KinFuLSApp
     kinfu_->setIcpCorespFilteringParams (0.1f/*meters*/, sin ( pcl::deg2rad(20.f) ));
     //kinfu_->setDepthTruncationForICP(3.f/*meters*/);
     kinfu_->setCameraMovementThreshold(0.001f);
-    kinfu_->setRelativeLeftCameraPosition(-0.03f, 0.0f, 0.0f);
+    kinfu_->setRelativeLeftCameraPosition(-0.06f, 0.0f, 0.0f);
 
     //Init KinFuLSApp
     tsdf_cloud_ptr_ = pcl::PointCloud<pcl::PointXYZI>::Ptr (new pcl::PointCloud<pcl::PointXYZI>);

@@ -173,9 +173,7 @@ namespace pcl
 
             int br = (int)(205 * weight) + 50;
             br = max (0, min (255, br));
-			color.x = br;
-			color.y = br;
-			color.z = br;
+            color = make_uchar3(br, br, br);
           }
           return color;
         }
@@ -339,7 +337,7 @@ namespace pcl
         PtrStep<uchar3> colors;
 
         Mat33 R_cam_g;
-        float3 t_g_cam;
+        float3 t_cam_g;
         float fx, fy, cx, cy;
         PtrStep<float> vmap;
         mutable PtrStepSz<uchar3> dst;
@@ -396,6 +394,7 @@ namespace pcl
           int x2 = ceil(uv.x);
           int y1 = floor(uv.y);
           int y2 = ceil(uv.y);
+          pixel = make_uchar3(0, 0, 0);
           if (x1 >=0 && y1 >=0 && x2 < cols && y2 < rows) {
             uchar3 p1 = colors.ptr(y1)[x1];
             uchar3 p2 = colors.ptr(y1)[x2];
@@ -446,7 +445,7 @@ namespace pcl
 
           uchar3 result_pixel = make_uchar3(0, 0, 0);
           if (!isnan (ray_end.x)) {
-            float3 proj_ray = R_cam_g * ray_end + t_g_cam;
+            float3 proj_ray = R_cam_g * ray_end + t_cam_g;
             float3 uv = XYZ2uv(proj_ray);
 
             uchar3 pixel;
@@ -465,7 +464,7 @@ namespace pcl
 
       void
       paint3DViewProj(const PtrStep<uchar3>& colors,
-          const Mat33 R_cam_g, const float3 t_g_cam,
+          const Mat33 R_cam_g, const float3 t_cam_g,
           float fx, float fy, float cx, float cy,
           const MapArr vmap,
           PtrStepSz<uchar3> dst, float colors_weight)
@@ -473,7 +472,7 @@ namespace pcl
         Paint3DProj p3Dv;
         p3Dv.colors = colors;
         p3Dv.R_cam_g = R_cam_g;
-        p3Dv.t_g_cam = t_g_cam;
+        p3Dv.t_cam_g = t_cam_g;
         p3Dv.fx = fx;
         p3Dv.fy = fy;
         p3Dv.cx = cx;
@@ -509,7 +508,7 @@ namespace pcl
         PtrStep<uchar3> colors;
 
         Mat33 R_cam_g;
-        float3 t_g_cam;
+        float3 t_cam_g;
         Mat33 R_view_img;
         float3 t_view_img;
         float fx, fy, cx, cy;
@@ -568,6 +567,7 @@ namespace pcl
           int x2 = ceil(uv.x);
           int y1 = floor(uv.y);
           int y2 = ceil(uv.y);
+          pixel = make_uchar3(0, 0, 0);
           if (x1 >=0 && y1 >=0 && x2 < cols && y2 < rows) {
             uchar3 p1 = colors.ptr(y1)[x1];
             uchar3 p2 = colors.ptr(y1)[x2];
@@ -618,7 +618,7 @@ namespace pcl
 
           uchar3 result_pixel = make_uchar3(0, 0, 0);
           if (!isnan (ray_end.x)) {
-            float3 proj_ray = R_cam_g * ray_end + t_g_cam;
+            float3 proj_ray = R_cam_g * ray_end + t_cam_g;
             proj_ray = R_view_img * proj_ray + t_view_img;
             float3 uv = XYZ2uv(proj_ray);
 
@@ -638,7 +638,7 @@ namespace pcl
 
       void
       paint3DViewProj(const PtrStep<uchar3>& colors,
-          const Mat33 R_cam_g, const float3 t_g_cam,
+          const Mat33 R_cam_g, const float3 t_cam_g,
           const Mat33 R_view_img, const float3 t_view_img,
           float fx, float fy, float cx, float cy,
           const MapArr vmap,
@@ -647,7 +647,7 @@ namespace pcl
         Paint3DProjRelativeImage p3Dvri;
         p3Dvri.colors = colors;
         p3Dvri.R_cam_g = R_cam_g;
-        p3Dvri.t_g_cam = t_g_cam;
+        p3Dvri.t_cam_g = t_cam_g;
         p3Dvri.R_view_img = R_view_img;
         p3Dvri.t_view_img = t_view_img;
         p3Dvri.fx = fx;
@@ -685,11 +685,11 @@ namespace pcl
         PtrStep<uchar3> colors;
 
         Mat33 R_cam_g_L;
-        float3 t_g_cam_L;
+        float3 t_cam_g_L;
         Mat33 R_view_img;
         float3 t_view_img;
         Mat33 R_cam_g_R;
-        float3 t_g_cam_R;
+        float3 t_cam_g_R;
         float fx, fy, cx, cy;
         PtrStep<float> vmapL;
         PtrStep<float> vmapR;
@@ -747,6 +747,7 @@ namespace pcl
           int x2 = ceil(uv.x);
           int y1 = floor(uv.y);
           int y2 = ceil(uv.y);
+          pixel = make_uchar3(0, 0, 0);
           if (x1 >=0 && y1 >=0 && x2 < cols && y2 < rows) {
             uchar3 p1 = colors.ptr(y1)[x1];
             uchar3 p2 = colors.ptr(y1)[x2];
@@ -800,8 +801,7 @@ namespace pcl
 
           uchar3 result_pixel_L = make_uchar3(0, 0, 0);
           if (!isnan (ray_end_L.x)) {
-            float3 proj_ray = R_cam_g_L * ray_end_L + t_g_cam_L;
-            proj_ray = R_view_img * proj_ray + t_view_img;
+            float3 proj_ray = R_cam_g_R * ray_end_L + t_cam_g_R;
             float3 uv = XYZ2uv(proj_ray);
 
             uchar3 pixel;
@@ -812,7 +812,7 @@ namespace pcl
 
           uchar3 result_pixel_R = make_uchar3(0, 0, 0);
           if (!isnan (ray_end_R.x)) {
-            float3 proj_ray = R_cam_g_R * ray_end_R + t_g_cam_R;
+            float3 proj_ray = R_cam_g_R * ray_end_R + t_cam_g_R;
             float3 uv = XYZ2uv(proj_ray);
 
             uchar3 pixel;
@@ -822,9 +822,9 @@ namespace pcl
           }
 
           uchar3 result_pixel;
-          result_pixel.x = result_pixel_L.x;
-          result_pixel.y = result_pixel_R.y;
-          result_pixel.z = result_pixel_R.z;
+          result_pixel.x = result_pixel_R.x;
+          result_pixel.y = result_pixel_L.y;
+          result_pixel.z = result_pixel_L.z;
           dst.ptr(y)[x] = result_pixel;
         }
       };
@@ -837,9 +837,9 @@ namespace pcl
 
       void
       paint3DViewProj(const PtrStep<uchar3>& colors,
-          const Mat33 R_cam_g_L, const float3 t_g_cam_L,
+          const Mat33 R_cam_g_L, const float3 t_cam_g_L,
           const Mat33 R_view_img, const float3 t_view_img,
-          const Mat33 R_cam_g_R, const float3 t_g_cam_R,
+          const Mat33 R_cam_g_R, const float3 t_cam_g_R,
           float fx, float fy, float cx, float cy,
           const MapArr vmapL,
           const MapArr vmapR,
@@ -848,11 +848,11 @@ namespace pcl
         Paint3DProjRelativeImageAnaglyph p3Dvria;
         p3Dvria.colors = colors;
         p3Dvria.R_cam_g_L = R_cam_g_L;
-        p3Dvria.t_g_cam_L = t_g_cam_L;
+        p3Dvria.t_cam_g_L = t_cam_g_L;
         p3Dvria.R_view_img = R_view_img;
         p3Dvria.t_view_img = t_view_img;
         p3Dvria.R_cam_g_R = R_cam_g_R;
-        p3Dvria.t_g_cam_R = t_g_cam_R;
+        p3Dvria.t_cam_g_R = t_cam_g_R;
         p3Dvria.fx = fx;
         p3Dvria.fy = fy;
         p3Dvria.cx = cx;
