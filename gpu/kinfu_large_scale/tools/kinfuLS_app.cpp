@@ -345,7 +345,7 @@ struct ImageView
   }
 
   void
-  showScene (KinfuTracker& kinfu, int frame_counter, bool* pause, const PtrStepSz<const pcl::gpu::kinfuLS::PixelRGB>& rgb24, bool registration, Eigen::Affine3f* pose_ptr = 0)
+  showScene (KinfuTracker& kinfu, int frame_counter, bool* pause, bool* exit, const PtrStepSz<const pcl::gpu::kinfuLS::PixelRGB>& rgb24, bool registration, Eigen::Affine3f* pose_ptr = 0)
   {
     // Hard code
     // Note: intrinsic of other parts are from Kinect
@@ -383,14 +383,11 @@ struct ImageView
       kinfu.getLeftCameraTranslation(t_L);
       kinfu.getRightCameraTranslation(t_R);
       kinfu.getRelativeLeftCameraPose(R_RL, t_RL);
-      kinfu.getVMapL(vmapsL);
-      kinfu.getVMapR(vmapsR);
 
       // Convert Matrix3frm to Mat33
       pcl::device::kinfuLS::Mat33 R_L_cam_g;
       pcl::device::kinfuLS::Mat33 R_R_cam_g;
       pcl::device::kinfuLS::Mat33 R_relative_RL;
-
       convR(R_L, R_L_cam_g);
       convR(R_R, R_R_cam_g);
       convR(R_RL, R_relative_RL);
@@ -403,9 +400,56 @@ struct ImageView
       convt(t_R, t_R_cam_g);
       convt(t_RL, t_relative_RL);
 
-      /*
-      paint3DView (colors_device_, view_device_R_, 1);
-      */
+      kinfu.getVMapL(vmapsL);
+      kinfu.getVMapR(vmapsR);
+
+      // Frame 2 is the first usable frame
+      if (frame_counter == 2) {
+        // Get first frame's vmaps
+        vmapsL.copyTo(vmapsL_first_);
+        vmapsR.copyTo(vmapsR_first_);
+      }
+
+      // For each frame, project it to the first frame
+      if (frame_counter >= 2) {
+        KinfuTracker::View view_device_L;
+        KinfuTracker::View view_device_R;
+        view_device_L.create(rgb24.rows, rgb24.cols);
+        view_device_R.create(rgb24.rows, rgb24.cols);
+
+        paint3DViewProj(colors_device_,
+                        R_R_cam_g, t_R_cam_g,
+                        fx, fy, cx, cy,
+                        vmapsL_first_,
+                        view_device_L, 1);
+        paint3DViewProj(colors_device_,
+                        R_R_cam_g, t_R_cam_g,
+                        fx, fy, cx, cy,
+                        vmapsR_first_,
+                        view_device_R, 1);
+
+        vector<pcl::gpu::kinfuLS::PixelRGB> view_host_L;
+        vector<pcl::gpu::kinfuLS::PixelRGB> view_host_R;
+        int cols;
+        view_device_L.download (view_host_L, cols);
+        view_device_R.download (view_host_R, cols);
+
+        std::stringstream ss_L;
+        std::stringstream ss_R;
+        ss_L << "./renderedImage_L_" << setw(4) << setfill('0') << (frame_counter - 2) << ".png";
+        ss_R << "./renderedImage_R_" << setw(4) << setfill('0') << (frame_counter - 2) << ".png";
+        string img_path_L = ss_L.str();
+        string img_path_R = ss_R.str();
+        pcl::io::saveRgbPNGFile(img_path_L, reinterpret_cast<unsigned char*> (&view_host_L[0]), view_device_L.cols (), view_device_L.rows ());
+        pcl::io::saveRgbPNGFile(img_path_R, reinterpret_cast<unsigned char*> (&view_host_R[0]), view_device_R.cols (), view_device_R.rows ());
+      }
+
+      if (frame_counter == (30 + 1)) {
+        *pause = true;
+        *exit = true;
+      }
+
+      //paint3DView (colors_device_, view_device_R_, 1);
       paint3DViewProj(colors_device_,
                       R_R_cam_g, t_R_cam_g,
                       fx, fy, cx, cy,
@@ -496,6 +540,8 @@ struct ImageView
 
   KinfuTracker::DepthMap generated_depth_;
 
+  KinfuTracker::MapArr vmapsL_first_;
+  KinfuTracker::MapArr vmapsR_first_;
 #ifdef HAVE_OPENCV
   vector<cv::Mat> views_;
 #endif
@@ -993,7 +1039,7 @@ struct KinFuLSApp
     if (has_image)
     {
       Eigen::Affine3f viewer_pose = getViewerPose(scene_cloud_view_.cloud_viewer_);
-      image_view_.showScene (*kinfu_, frame_counter_, &pause_, rgb24, registration_, independent_camera_ ? &viewer_pose : 0);
+      image_view_.showScene (*kinfu_, frame_counter_, &pause_, &exit_, rgb24, registration_, independent_camera_ ? &viewer_pose : 0);
 
     }
 
