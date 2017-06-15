@@ -684,10 +684,6 @@ namespace pcl
 
         PtrStep<uchar3> colors;
 
-        Mat33 R_cam_g_L;
-        float3 t_cam_g_L;
-        Mat33 R_view_img;
-        float3 t_view_img;
         Mat33 R_cam_g_R;
         float3 t_cam_g_R;
         float fx, fy, cx, cy;
@@ -837,8 +833,6 @@ namespace pcl
 
       void
       paint3DViewProj(const PtrStep<uchar3>& colors,
-          const Mat33 R_cam_g_L, const float3 t_cam_g_L,
-          const Mat33 R_view_img, const float3 t_view_img,
           const Mat33 R_cam_g_R, const float3 t_cam_g_R,
           float fx, float fy, float cx, float cy,
           const MapArr vmapL,
@@ -847,10 +841,6 @@ namespace pcl
       {
         Paint3DProjRelativeImageAnaglyph p3Dvria;
         p3Dvria.colors = colors;
-        p3Dvria.R_cam_g_L = R_cam_g_L;
-        p3Dvria.t_cam_g_L = t_cam_g_L;
-        p3Dvria.R_view_img = R_view_img;
-        p3Dvria.t_view_img = t_view_img;
         p3Dvria.R_cam_g_R = R_cam_g_R;
         p3Dvria.t_cam_g_R = t_cam_g_R;
         p3Dvria.fx = fx;

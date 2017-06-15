@@ -118,10 +118,6 @@ namespace pcl
                            const KinfuTracker::MapArr vmaps,
                            KinfuTracker::View& view, float colors_weight = 0.5f);
       void paint3DViewProj(const KinfuTracker::View& rgb24,
-                           const pcl::device::kinfuLS::Mat33 R_cam_g_L,
-                           const float3 t_cam_g_L,
-                           const pcl::device::kinfuLS::Mat33 R_view_img,
-                           const float3 t_view_img_R,
                            const pcl::device::kinfuLS::Mat33 R_cam_g_R,
                            const float3 t_cam_g_R,
                            float fx, float fy, float cx, float cy,
@@ -351,6 +347,11 @@ struct ImageView
   void
   showScene (KinfuTracker& kinfu, int frame_counter, bool* pause, const PtrStepSz<const pcl::gpu::kinfuLS::PixelRGB>& rgb24, bool registration, Eigen::Affine3f* pose_ptr = 0)
   {
+    // Hard code
+    // Note: intrinsic of other parts are from Kinect
+    // TODO Get intrinsic from ONI
+    float fx = 575, fy = 575, cx = 319.5, cy = 239.5;
+
     if (pose_ptr)
     {
       raycaster_ptr_->run ( kinfu.volume (), *pose_ptr, kinfu.getCyclicalBufferStructure () ); //says in cmake it does not know it
@@ -376,11 +377,6 @@ struct ImageView
       KinfuTracker::Vector3f t_RL;
       KinfuTracker::MapArr vmapsL;
       KinfuTracker::MapArr vmapsR;
-
-      // Hard code
-      // Note: intrinsic of other parts are from Kinect
-      // TODO Get intrinsic from ONI
-      float fx = 575, fy = 575, cx = 319.5, cy = 239.5;
 
       kinfu.getLeftCameraRotation(R_L);
       kinfu.getRightCameraRotation(R_R);
@@ -411,8 +407,7 @@ struct ImageView
       paint3DView (colors_device_, view_device_R_, 1);
       */
       paint3DViewProj(colors_device_,
-                      R_L_cam_g, t_L_cam_g,
-                      R_relative_RL, t_relative_RL,
+                      R_R_cam_g, t_R_cam_g,
                       fx, fy, cx, cy,
                       vmapsL,
                       view_device_L_);
@@ -422,8 +417,6 @@ struct ImageView
                       vmapsR,
                       view_device_R_);
       paint3DViewProj(colors_device_,
-                      R_L_cam_g, t_L_cam_g,
-                      R_relative_RL, t_relative_RL,
                       R_R_cam_g, t_R_cam_g,
                       fx, fy, cx, cy,
                       vmapsL,
