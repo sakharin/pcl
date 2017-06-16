@@ -154,41 +154,49 @@ namespace pcl
 
           /** \brief Gets global left camera rotation.
             * \param[out] rotation 3x3 rotation matrix
+            * \param[in] index index of camera pose. -1 means current pose.
             */
           void getGlobalLeftCameraRotation(Matrix3frm& rotation, int index=-1);
 
           /** \brief Gets global right camera rotation.
             * \param[out] rotation 3x3 rotation matrix
+            * \param[in] index index of camera pose. -1 means current pose.
             */
           void getGlobalRightCameraRotation(Matrix3frm& rotation, int index=-1);
 
           /** \brief Gets global left camera translation.
             * \param[out] translation 3x1 translation vector
+            * \param[in] index index of camera pose. -1 means current pose.
             */
           void getGlobalLeftCameraTranslation(Vector3f& translation, int index=-1);
 
           /** \brief Gets global right camera translation.
             * \param[out] translation 3x1 translation vector
+            * \param[in] index index of camera pose. -1 means current pose.
             */
           void getGlobalRightCameraTranslation(Vector3f& translation, int index=-1);
 
           /** \brief Gets left camera rotation.
             * \param[out] rotation 3x3 rotation matrix
+            * \param[in] index index of camera pose. -1 means current pose.
             */
           void getLeftCameraRotation(Matrix3frm& rotation, int index=-1);
 
           /** \brief Gets right camera rotation.
             * \param[out] rotation 3x3 rotation matrix
+            * \param[in] index index of camera pose. -1 means current pose.
             */
           void getRightCameraRotation(Matrix3frm& rotation, int index=-1);
 
           /** \brief Gets left camera translation.
             * \param[out] translation 3x1 translation vector
+            * \param[in] index index of camera pose. -1 means current pose.
             */
           void getLeftCameraTranslation(Vector3f& translation, int index=-1);
 
           /** \brief Gets right camera translation.
             * \param[out] translation 3x1 translation vector
+            * \param[in] index index of camera pose. -1 means current pose.
             */
           void getRightCameraTranslation(Vector3f& translation, int index=-1);
 
@@ -211,6 +219,14 @@ namespace pcl
             * \param[out] nmap normal map
             */
           void getNMapR(MapArr& nmaps);
+
+          /** \brief Gets vmaps and nmaps from a camera pose by raycasting.
+           * \param[in] rotation 3x3 rotation matrix
+           * \param[in] translation 3x1 translation vector
+           * \param[out] vmaps vertex map
+           * \param[out] nmaps normal map
+           */
+          void getVNMaps(Matrix3frm& rotation, Vector3f& translation, MapArr& vmaps, MapArr& nmaps);
 
           /** \brief Performs initialization for color integration. Must be called before calling color integration.
             * \param[in] max_weight max weighe for color integration. -1 means default weight.

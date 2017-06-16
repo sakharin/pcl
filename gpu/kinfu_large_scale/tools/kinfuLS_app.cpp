@@ -375,8 +375,6 @@ struct ImageView
       KinfuTracker::Vector3f t_L;
       KinfuTracker::Vector3f t_R;
       KinfuTracker::Vector3f t_RL;
-      KinfuTracker::MapArr vmapsL;
-      KinfuTracker::MapArr vmapsR;
 
       kinfu.getLeftCameraRotation(R_L);
       kinfu.getRightCameraRotation(R_R);
@@ -400,51 +398,78 @@ struct ImageView
       convt(t_R, t_R_cam_g);
       convt(t_RL, t_relative_RL);
 
+      KinfuTracker::MapArr vmapsL;
+      KinfuTracker::MapArr vmapsR;
       kinfu.getVMapL(vmapsL);
       kinfu.getVMapR(vmapsR);
 
       // Frame 2 is the first usable frame
       if (frame_counter == 2) {
-        // Get first frame's vmaps
-        vmapsL.copyTo(vmapsL_first_);
-        vmapsR.copyTo(vmapsR_first_);
+        // Store first frame's poses
+        kinfu.getGlobalLeftCameraRotation(R_L_g_cam_first_);
+        kinfu.getGlobalRightCameraRotation(R_R_g_cam_first_);
+        kinfu.getGlobalLeftCameraTranslation(t_L_g_cam_first_);
+        kinfu.getGlobalRightCameraTranslation(t_R_g_cam_first_);
       }
 
-      // For each frame, project it to the first frame
+      int number_of_frame = 30;
       if (frame_counter >= 2) {
-        KinfuTracker::View view_device_L;
-        KinfuTracker::View view_device_R;
-        view_device_L.create(rgb24.rows, rgb24.cols);
-        view_device_R.create(rgb24.rows, rgb24.cols);
+        // Store images
+        KinfuTracker::View image;
+        image.upload(rgb24.data, rgb24.step, rgb24.rows, rgb24.cols);
+        images_.push_back(image);
 
-        paint3DViewProj(colors_device_,
-                        R_R_cam_g, t_R_cam_g,
-                        fx, fy, cx, cy,
-                        vmapsL_first_,
-                        view_device_L, 1);
-        paint3DViewProj(colors_device_,
-                        R_R_cam_g, t_R_cam_g,
-                        fx, fy, cx, cy,
-                        vmapsR_first_,
-                        view_device_R, 1);
-
-        vector<pcl::gpu::kinfuLS::PixelRGB> view_host_L;
-        vector<pcl::gpu::kinfuLS::PixelRGB> view_host_R;
-        int cols;
-        view_device_L.download (view_host_L, cols);
-        view_device_R.download (view_host_R, cols);
-
-        std::stringstream ss_L;
-        std::stringstream ss_R;
-        ss_L << "./renderedImage_L_" << setw(4) << setfill('0') << (frame_counter - 2) << ".png";
-        ss_R << "./renderedImage_R_" << setw(4) << setfill('0') << (frame_counter - 2) << ".png";
-        string img_path_L = ss_L.str();
-        string img_path_R = ss_R.str();
-        pcl::io::saveRgbPNGFile(img_path_L, reinterpret_cast<unsigned char*> (&view_host_L[0]), view_device_L.cols (), view_device_L.rows ());
-        pcl::io::saveRgbPNGFile(img_path_R, reinterpret_cast<unsigned char*> (&view_host_R[0]), view_device_R.cols (), view_device_R.rows ());
+        // Store poses
+        Rs_L_cam_g_.push_back(R_L_cam_g);
+        Rs_R_cam_g_.push_back(R_R_cam_g);
+        ts_L_cam_g_.push_back(t_L_cam_g);
+        ts_R_cam_g_.push_back(t_R_cam_g);
       }
+      if (frame_counter == number_of_frame + 1) {
+        for (int index = 0; index < number_of_frame; index++) {
+          KinfuTracker::View image = images_.at(index);
+          R_L_cam_g = Rs_L_cam_g_.at(index);
+          R_R_cam_g = Rs_R_cam_g_.at(index);
+          t_L_cam_g = ts_L_cam_g_.at(index);
+          t_R_cam_g = ts_R_cam_g_.at(index);
 
-      if (frame_counter == (30 + 1)) {
+          KinfuTracker::MapArr vmapsL_first;
+          KinfuTracker::MapArr vmapsR_first;
+          KinfuTracker::MapArr nmaps;
+          kinfu.getVNMaps(R_L_g_cam_first_, t_L_g_cam_first_, vmapsL_first, nmaps);
+          kinfu.getVNMaps(R_R_g_cam_first_, t_R_g_cam_first_, vmapsR_first, nmaps);
+
+          KinfuTracker::View view_device_L;
+          KinfuTracker::View view_device_R;
+          view_device_L.create(rgb24.rows, rgb24.cols);
+          view_device_R.create(rgb24.rows, rgb24.cols);
+
+          paint3DViewProj(image,
+                          R_R_cam_g, t_R_cam_g,
+                          fx, fy, cx, cy,
+                          vmapsL_first,
+                          view_device_L, 1);
+          paint3DViewProj(image,
+                          R_R_cam_g, t_R_cam_g,
+                          fx, fy, cx, cy,
+                          vmapsR_first,
+                          view_device_R, 1);
+
+          vector<pcl::gpu::kinfuLS::PixelRGB> view_host_L;
+          vector<pcl::gpu::kinfuLS::PixelRGB> view_host_R;
+          int cols;
+          view_device_L.download (view_host_L, cols);
+          view_device_R.download (view_host_R, cols);
+
+          std::stringstream ss_L;
+          std::stringstream ss_R;
+          ss_L << "./renderedImage_L_" << setw(4) << setfill('0') << index << ".png";
+          ss_R << "./renderedImage_R_" << setw(4) << setfill('0') << index << ".png";
+          string img_path_L = ss_L.str();
+          string img_path_R = ss_R.str();
+          pcl::io::saveRgbPNGFile(img_path_L, reinterpret_cast<unsigned char*> (&view_host_L[0]), view_device_L.cols (), view_device_L.rows ());
+          pcl::io::saveRgbPNGFile(img_path_R, reinterpret_cast<unsigned char*> (&view_host_R[0]), view_device_R.cols (), view_device_R.rows ());
+        }
         *pause = true;
         *exit = true;
       }
@@ -540,8 +565,16 @@ struct ImageView
 
   KinfuTracker::DepthMap generated_depth_;
 
-  KinfuTracker::MapArr vmapsL_first_;
-  KinfuTracker::MapArr vmapsR_first_;
+  KinfuTracker::Matrix3frm R_L_g_cam_first_;
+  KinfuTracker::Matrix3frm R_R_g_cam_first_;
+  KinfuTracker::Vector3f t_L_g_cam_first_;
+  KinfuTracker::Vector3f t_R_g_cam_first_;
+
+  vector< KinfuTracker::View > images_;
+  vector< pcl::device::kinfuLS::Mat33 > Rs_L_cam_g_;
+  vector< pcl::device::kinfuLS::Mat33 > Rs_R_cam_g_;
+  vector< float3 > ts_L_cam_g_;
+  vector< float3 > ts_R_cam_g_;
 #ifdef HAVE_OPENCV
   vector<cv::Mat> views_;
 #endif

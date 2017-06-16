@@ -270,6 +270,43 @@ void pcl::gpu::kinfuLS::KinfuTracker::getNMapR(MapArr& nmaps) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void pcl::gpu::kinfuLS::KinfuTracker::getVNMaps(Matrix3frm& rotation, Vector3f& translation, MapArr& vmaps, MapArr& nmaps) {
+  // Intrisics of the camera
+  Intr intr (fx_, fy_, cx_, cy_);
+
+  // Physical volume size (meters)
+  float3 device_volume_size = device_cast<const float3> (tsdf_volume_->getSize());
+
+  // Allocate maps
+  std::vector<MapArr> vmaps_tmp;
+  std::vector<MapArr> nmaps_tmp;
+  vmaps_tmp.resize(LEVELS);
+  nmaps_tmp.resize(LEVELS);
+  int rows = 480;
+  int cols = 640;
+  for (int i = 0; i < LEVELS; ++i)
+  {
+    int pyr_rows = rows >> i;
+    int pyr_cols = cols >> i;
+    vmaps_tmp[i].create (pyr_rows*3, pyr_cols);
+    nmaps_tmp[i].create (pyr_rows*3, pyr_cols);
+  }
+
+  // Convert pose
+  Mat33 device_current_rotation;
+  float3 device_current_translation;
+  convertTransforms(rotation,
+                    translation,
+                    device_current_rotation,
+                    device_current_translation);
+
+  // Generate synthetic vertex and normal maps
+  raycast(intr, device_current_rotation, device_current_translation, tsdf_volume_->getTsdfTruncDist (), device_volume_size, tsdf_volume_->data (), getCyclicalBufferStructure (), vmaps_tmp[0], nmaps_tmp[0]);
+  vmaps = vmaps_tmp[0];
+  nmaps = nmaps_tmp[0];
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void
 pcl::gpu::kinfuLS::KinfuTracker::setIcpCorespFilteringParams (float distThreshold, float sineOfAngle)
 {
