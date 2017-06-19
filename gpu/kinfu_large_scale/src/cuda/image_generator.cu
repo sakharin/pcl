@@ -272,8 +272,8 @@ namespace pcl
     }
   }
 }
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 namespace pcl
 {
   namespace device
@@ -488,6 +488,183 @@ namespace pcl
         dim3 grid(divUp(dst.cols, block.x), divUp(dst.rows, block.y));
 
         paint3DViewProjKernel<<<grid, block>>>(p3Dv);
+        cudaSafeCall (cudaGetLastError ());
+        cudaSafeCall (cudaDeviceSynchronize ());
+      }
+    }
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+namespace pcl
+{
+  namespace device
+  {
+    namespace kinfuLS
+    {
+      struct Paint3DProjMask {
+        enum { CTA_SIZE_X = 32, CTA_SIZE_Y = 8 };
+
+        PtrStep<uchar3> colors;
+
+        Mat33 R_cam_g;
+        float3 t_cam_g;
+        float fx, fy, cx, cy;
+        PtrStep<float> vmap;
+        mutable PtrStepSz<uchar3> dst;
+        mutable PtrStepSz<uchar3> mask;
+        float colors_weight;
+
+        int vmap_cols, vmap_rows;
+
+        __device__ __forceinline__ float3
+        get_ray_next (int x, int y) const
+        {
+          float3 ray_next;
+          ray_next.x = (x - cx) / fx;
+          ray_next.y = (y - cy) / fy;
+          ray_next.z = 1;
+          return ray_next;
+        }
+
+        __device__ __forceinline__ float3
+        XYZ2uv (float3 XYZ) const
+        {
+          float3 uv;
+          uv.x = (fx * XYZ.x + cx * XYZ.z) / XYZ.z;
+          uv.y = (fy * XYZ.y + cy * XYZ.z) / XYZ.z;
+          uv.z = 1;
+          return uv;
+        }
+
+        __device__ __forceinline__ void
+        linearInterColori (uchar3 c1, uchar3 c2, int p1, int p2, float p,
+            float3 &c) const {
+          float s1, s2;
+          s1 = (p2 - p) / (p2 - p1);
+          s2 = (p - p1) / (p2 - p1);
+          c.x = s1 * c1.x + s2 * c2.x;
+          c.y = s1 * c1.y + s2 * c2.y;
+          c.z = s1 * c1.z + s2 * c2.z;
+        }
+
+        __device__ __forceinline__ void
+        linearInterColorf (float3 c1, float3 c2, int p1, int p2, float p,
+            float3 &c) const {
+          float s1, s2;
+          s1 = (p2 - p) / (p2 - p1);
+          s2 = (p - p1) / (p2 - p1);
+          c.x = s1 * c1.x + s2 * c2.x;
+          c.y = s1 * c1.y + s2 * c2.y;
+          c.z = s1 * c1.z + s2 * c2.z;
+        }
+
+        __device__ __forceinline__ void
+        projectPixel (float3 uv, PtrStep<uchar3> colors, int rows, int cols,
+            uchar3& pixel, uchar3& mask_pixel) const {
+          int x1 = floor(uv.x);
+          int x2 = ceil(uv.x);
+          int y1 = floor(uv.y);
+          int y2 = ceil(uv.y);
+          pixel = make_uchar3(0, 0, 0);
+          if (x1 >=0 && y1 >=0 && x2 < cols && y2 < rows) {
+            uchar3 p1 = colors.ptr(y1)[x1];
+            uchar3 p2 = colors.ptr(y1)[x2];
+            uchar3 p3 = colors.ptr(y2)[x1];
+            uchar3 p4 = colors.ptr(y2)[x2];
+            float3 p12, p34, p1234;
+            linearInterColori(p1, p2, x1, x2, uv.x, p12);
+            linearInterColori(p3, p4, x1, x2, uv.x, p34);
+            linearInterColorf(p12, p34, y1, y2, uv.y, p1234);
+            pixel.x = min(255, max(0, __float2int_rn(p1234.x)));
+            pixel.y = min(255, max(0, __float2int_rn(p1234.y)));
+            pixel.z = min(255, max(0, __float2int_rn(p1234.z)));
+			mask_pixel = make_uchar3(255, 255, 255);
+          }
+        }
+
+        __device__ __forceinline__ void
+        weightSumPixel(uchar3 pixel_1, uchar3 pixel_2, float weight,
+            uchar3& pixel) const {
+          pixel = make_uchar3(0, 0, 0);
+          if (pixel_1.x != 0 || pixel_1.y != 0 || pixel_1.z != 0 ||
+              pixel_2.x != 0 || pixel_2.y != 0 || pixel_2.z != 0) {
+            float cx = pixel_1.x * weight + pixel_2.x * (1.f - weight);
+            float cy = pixel_1.y * weight + pixel_2.y * (1.f - weight);
+            float cz = pixel_1.z * weight + pixel_2.z * (1.f - weight);
+            pixel.x = min(255, max(0, __float2int_rn(cx)));
+            pixel.y = min(255, max(0, __float2int_rn(cy)));
+            pixel.z = min(255, max(0, __float2int_rn(cz)));
+          }
+        }
+
+        __device__ __forceinline__ void
+        operator () () const
+        {
+          // Get vmap index
+          int u = threadIdx.x + blockIdx.x * CTA_SIZE_X;
+          int v = threadIdx.y + blockIdx.y * CTA_SIZE_Y;
+          int x = threadIdx.x + blockIdx.x * blockDim.x;
+          int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+          // Index must be in vmap
+          if (u >= vmap_cols || v >= vmap_rows)
+            return;
+
+          float3 ray_end;
+          ray_end.x = vmap.ptr (v                )[u];
+          ray_end.y = vmap.ptr (v + vmap_rows    )[u];
+          ray_end.z = vmap.ptr (v + 2 * vmap_rows)[u];
+
+          uchar3 result_pixel = make_uchar3(0, 0, 0);
+          uchar3 mask_pixel = make_uchar3(0, 0, 0);
+          if (!isnan (ray_end.x)) {
+            float3 proj_ray = R_cam_g * ray_end + t_cam_g;
+            float3 uv = XYZ2uv(proj_ray);
+
+            uchar3 pixel;
+            projectPixel(uv, colors, dst.rows, dst.cols, pixel, mask_pixel);
+            uchar3 value = dst.ptr(y)[x];
+            weightSumPixel(pixel, value, colors_weight, result_pixel);
+          }
+          dst.ptr(y)[x] = result_pixel;
+		  mask.ptr(y)[x] = mask_pixel;
+        }
+      };
+
+      __global__ void
+      paint3DViewProjMaskKernel (const Paint3DProjMask p3Dvm) {
+        p3Dvm ();
+      }
+
+      void
+      paint3DViewProj(const PtrStep<uchar3>& colors,
+          const Mat33 R_cam_g, const float3 t_cam_g,
+          float fx, float fy, float cx, float cy,
+          const MapArr vmap,
+          PtrStepSz<uchar3> dst, PtrStepSz<uchar3> mask,
+		  float colors_weight)
+      {
+        Paint3DProjMask p3Dvm;
+        p3Dvm.colors = colors;
+        p3Dvm.R_cam_g = R_cam_g;
+        p3Dvm.t_cam_g = t_cam_g;
+        p3Dvm.fx = fx;
+        p3Dvm.fy = fy;
+        p3Dvm.cx = cx;
+        p3Dvm.cy = cy;
+        p3Dvm.vmap = vmap;
+        p3Dvm.dst = dst;
+        p3Dvm.mask = mask;
+        p3Dvm.colors_weight = min(1.f, max(0.f, colors_weight));
+
+        p3Dvm.vmap_cols = vmap.cols ();
+        p3Dvm.vmap_rows = vmap.rows () / 3;
+
+        dim3 block(32, 8);
+        dim3 grid(divUp(dst.cols, block.x), divUp(dst.rows, block.y));
+
+        paint3DViewProjMaskKernel<<<grid, block>>>(p3Dvm);
         cudaSafeCall (cudaGetLastError ());
         cudaSafeCall (cudaDeviceSynchronize ());
       }

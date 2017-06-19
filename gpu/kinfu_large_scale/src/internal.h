@@ -336,6 +336,23 @@ namespace pcl
         * \param[in] colors rgb color frame from OpenNI
         * \param[in] R_cam_g rotation matrix from global to camera
         * \param[in] t_g_cam translation vector of global frame
+        * \param[in] vmaps vertex map
+        * \param[out] dst output 3D view
+        * \param[out] mask output 3D view
+        * \param[in] colors_weight weight for colors
+        */
+      void
+      paint3DViewProj(const PtrStep<uchar3>& colors,
+                      const Mat33 R_cam_g, const float3 t_g_cam,
+                      float fx, float fy, float cx, float cy,
+                      const MapArr vmap,
+                      PtrStepSz<uchar3> dst, PtrStepSz<uchar3> mask,
+                      float colors_weight = 0.5f);
+
+      /** \brief Paints 3D view with color map
+        * \param[in] colors rgb color frame from OpenNI
+        * \param[in] R_cam_g rotation matrix from global to camera
+        * \param[in] t_g_cam translation vector of global frame
         * \param[in] R_view_img relative rotation matrix from image to camera
         * \param[in] t_view_img relative translation vector from image to camera
         * \param[in] vmaps vertex map

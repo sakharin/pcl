@@ -1130,6 +1130,22 @@ namespace pcl
       paint3DViewProj(const KinfuTracker::View& rgb24,
                       const pcl::device::kinfuLS::Mat33 R_cam_g,
                       const float3 t_cam_g,
+                      float fx, float fy, float cx, float cy,
+                      const KinfuTracker::MapArr vmaps,
+                      KinfuTracker::View& view, KinfuTracker::View& mask,
+                      float colors_weight = 0.5f)
+      {
+        pcl::device::kinfuLS::paint3DViewProj(rgb24,
+                                              R_cam_g, t_cam_g,
+                                              fx, fy, cx, cy,
+                                              vmaps,
+                                              view, mask, colors_weight);
+      }
+
+      PCL_EXPORTS void
+      paint3DViewProj(const KinfuTracker::View& rgb24,
+                      const pcl::device::kinfuLS::Mat33 R_cam_g,
+                      const float3 t_cam_g,
                       const pcl::device::kinfuLS::Mat33 R_view_img,
                       const float3 t_view_img,
                       float fx, float fy, float cx, float cy,

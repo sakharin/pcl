@@ -112,6 +112,14 @@ namespace pcl
       void paint3DViewProj(const KinfuTracker::View& rgb24,
                            const pcl::device::kinfuLS::Mat33 R_cam_g,
                            const float3 t_cam_g,
+                           float fx, float fy, float cx, float cy,
+                           const KinfuTracker::MapArr vmaps,
+                           KinfuTracker::View& view,
+                           KinfuTracker::View& mask,
+                           float colors_weight = 0.5f);
+      void paint3DViewProj(const KinfuTracker::View& rgb24,
+                           const pcl::device::kinfuLS::Mat33 R_cam_g,
+                           const float3 t_cam_g,
                            const pcl::device::kinfuLS::Mat33 R_view_img,
                            const float3 t_view_img,
                            float fx, float fy, float cx, float cy,
@@ -441,34 +449,50 @@ struct ImageView
 
           KinfuTracker::View view_device_L;
           KinfuTracker::View view_device_R;
+          KinfuTracker::View mask_device_L;
+          KinfuTracker::View mask_device_R;
           view_device_L.create(rgb24.rows, rgb24.cols);
           view_device_R.create(rgb24.rows, rgb24.cols);
+          mask_device_L.create(rgb24.rows, rgb24.cols);
+          mask_device_R.create(rgb24.rows, rgb24.cols);
 
           paint3DViewProj(image,
                           R_R_cam_g, t_R_cam_g,
                           fx, fy, cx, cy,
                           vmapsL_first,
-                          view_device_L, 1);
+                          view_device_L, mask_device_L, 1);
           paint3DViewProj(image,
                           R_R_cam_g, t_R_cam_g,
                           fx, fy, cx, cy,
                           vmapsR_first,
-                          view_device_R, 1);
+                          view_device_R, mask_device_R, 1);
 
           vector<pcl::gpu::kinfuLS::PixelRGB> view_host_L;
           vector<pcl::gpu::kinfuLS::PixelRGB> view_host_R;
+          vector<pcl::gpu::kinfuLS::PixelRGB> mask_host_L;
+          vector<pcl::gpu::kinfuLS::PixelRGB> mask_host_R;
           int cols;
-          view_device_L.download (view_host_L, cols);
-          view_device_R.download (view_host_R, cols);
+          view_device_L.download(view_host_L, cols);
+          view_device_R.download(view_host_R, cols);
+          mask_device_L.download(mask_host_L, cols);
+          mask_device_R.download(mask_host_R, cols);
 
-          std::stringstream ss_L;
-          std::stringstream ss_R;
-          ss_L << "./renderedImage_L_" << setw(4) << setfill('0') << index << ".png";
-          ss_R << "./renderedImage_R_" << setw(4) << setfill('0') << index << ".png";
-          string img_path_L = ss_L.str();
-          string img_path_R = ss_R.str();
-          pcl::io::saveRgbPNGFile(img_path_L, reinterpret_cast<unsigned char*> (&view_host_L[0]), view_device_L.cols (), view_device_L.rows ());
-          pcl::io::saveRgbPNGFile(img_path_R, reinterpret_cast<unsigned char*> (&view_host_R[0]), view_device_R.cols (), view_device_R.rows ());
+          std::stringstream ss_view_L;
+          std::stringstream ss_view_R;
+          std::stringstream ss_mask_L;
+          std::stringstream ss_mask_R;
+          ss_view_L << "./renderedImage_L_" << setw(4) << setfill('0') << index << ".png";
+          ss_view_R << "./renderedImage_R_" << setw(4) << setfill('0') << index << ".png";
+          ss_mask_L << "./maskedImage_L_" << setw(4) << setfill('0') << index << ".png";
+          ss_mask_R << "./maskedImage_R_" << setw(4) << setfill('0') << index << ".png";
+          string view_path_L = ss_view_L.str();
+          string view_path_R = ss_view_R.str();
+          string mask_path_L = ss_mask_L.str();
+          string mask_path_R = ss_mask_R.str();
+          pcl::io::saveRgbPNGFile(view_path_L, reinterpret_cast<unsigned char*> (&view_host_L[0]), view_device_L.cols (), view_device_L.rows ());
+          pcl::io::saveRgbPNGFile(view_path_R, reinterpret_cast<unsigned char*> (&view_host_R[0]), view_device_R.cols (), view_device_R.rows ());
+          pcl::io::saveRgbPNGFile(mask_path_L, reinterpret_cast<unsigned char*> (&mask_host_L[0]), mask_device_L.cols (), mask_device_L.rows ());
+          pcl::io::saveRgbPNGFile(mask_path_R, reinterpret_cast<unsigned char*> (&mask_host_R[0]), mask_device_R.cols (), mask_device_R.rows ());
         }
         *pause = true;
         *exit = true;
