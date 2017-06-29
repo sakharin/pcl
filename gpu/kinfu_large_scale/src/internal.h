@@ -384,6 +384,25 @@ namespace pcl
                       const MapArr vmapR,
                       PtrStepSz<uchar3> dst, float colors_weight = 0.5f);
 
+      /** \brief Paints 3D view with color map
+        * \param[in] images rgb color frame from OpenNI
+        * \param[in] R_cam_g_R rotation matrix from global to camera
+        * \param[in] t_g_cam_R translation vector of global frame
+        * \param[in] vmapsL vertex map
+        * \param[in] vmapsR vertex map
+        * \param[out] dst output 3D view
+        * \param[in] colors_weight weight for colors
+        */
+      void
+      paint3DViewProj(const std::vector< PtrStep<uchar3> >& images,
+                      const std::vector< Mat33 > Rs_cam_g,
+                      const std::vector< float3 > ts_cam_g,
+                      float fx, float fy, float cx, float cy,
+                      const MapArr vmap,
+                      PtrStepSz<uchar3> dst,
+                      PtrStepSz<uchar3> mask,
+                      float colors_weight = 0.5f);
+
       /** \brief Performs resize of vertex map to next pyramid level by averaging each four points
         * \param[in] input vertext map
         * \param[out] output resized vertex map

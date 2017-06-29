@@ -1177,6 +1177,29 @@ namespace pcl
       }
 
       PCL_EXPORTS void
+      paint3DViewProj(const std::vector< KinfuTracker::View >& images,
+                      const std::vector< pcl::device::kinfuLS::Mat33 > R_cam_g,
+                      const std::vector< float3 > t_cam_g,
+                      float fx, float fy, float cx, float cy,
+                      const KinfuTracker::MapArr vmaps,
+                      KinfuTracker::View& view,
+                      KinfuTracker::View& mask,
+                      float colors_weight = 0.5f)
+      {
+
+
+        std::vector< PtrStep<uchar3> > _images;
+        for (int index = 0; index < images.size(); index++) {
+          _images.push_back(images.at(index));
+        }
+        pcl::device::kinfuLS::paint3DViewProj(_images,
+                                              R_cam_g, t_cam_g,
+                                              fx, fy, cx, cy,
+                                              vmaps,
+                                              view, mask, colors_weight);
+      }
+
+      PCL_EXPORTS void
       mergePointNormal(const DeviceArray<PointXYZ>& cloud, const DeviceArray<Normal>& normals, DeviceArray<PointNormal>& output)
       {
         const size_t size = min(cloud.size(), normals.size());

@@ -132,6 +132,14 @@ namespace pcl
                            const KinfuTracker::MapArr vmapsL,
                            const KinfuTracker::MapArr vmapsR,
                            KinfuTracker::View& view, float colors_weight = 0.5f);
+      void paint3DViewProj(const std::vector< KinfuTracker::View >& images,
+                           const std::vector< pcl::device::kinfuLS::Mat33 > Rs_cam_g,
+                           const std::vector< float3 > ts_cam_g,
+                           float fx, float fy, float cx, float cy,
+                           const KinfuTracker::MapArr vmaps,
+                           KinfuTracker::View& view,
+                           KinfuTracker::View& mask,
+                           float colors_weight = 0.5f);
       void mergePointNormal (const DeviceArray<PointXYZ>& cloud, const DeviceArray<Normal>& normals, DeviceArray<PointNormal>& output);
     }
   }
@@ -434,6 +442,36 @@ struct ImageView
         ts_R_cam_g_.push_back(t_R_cam_g);
       }
       if (frame_counter == number_of_frame + 1) {
+        KinfuTracker::MapArr vmapsL_first;
+        KinfuTracker::MapArr nmaps;
+        kinfu.getVNMaps(R_L_g_cam_first_, t_L_g_cam_first_, vmapsL_first, nmaps);
+        KinfuTracker::View view_device_L;
+        view_device_L.create(rgb24.rows, rgb24.cols);
+
+        KinfuTracker::View mask_device_L;
+        mask_device_L.create(rgb24.rows, rgb24.cols);
+
+        paint3DViewProj(images_,
+                        Rs_R_cam_g_, ts_R_cam_g_,
+                        fx, fy, cx, cy,
+                        vmapsL_first,
+                        view_device_L, mask_device_L, 1);
+          vector<pcl::gpu::kinfuLS::PixelRGB> view_host_L;
+          vector<pcl::gpu::kinfuLS::PixelRGB> mask_host_L;
+          int cols;
+          view_device_L.download(view_host_L, cols);
+          mask_device_L.download(mask_host_L, cols);
+
+          std::stringstream ss_view_L;
+          std::stringstream ss_mask_L;
+          ss_view_L << "./renderedImage_L.png";
+          ss_mask_L << "./maskedImage_L.png";
+          string view_path_L = ss_view_L.str();
+          string mask_path_L = ss_mask_L.str();
+          pcl::io::saveRgbPNGFile(view_path_L, reinterpret_cast<unsigned char*> (&view_host_L[0]), view_device_L.cols (), view_device_L.rows ());
+          pcl::io::saveRgbPNGFile(mask_path_L, reinterpret_cast<unsigned char*> (&mask_host_L[0]), mask_device_L.cols (), mask_device_L.rows ());
+
+        /*
         for (int index = 0; index < number_of_frame; index++) {
           KinfuTracker::View image = images_.at(index);
           R_L_cam_g = Rs_L_cam_g_.at(index);
@@ -494,6 +532,7 @@ struct ImageView
           pcl::io::saveRgbPNGFile(mask_path_L, reinterpret_cast<unsigned char*> (&mask_host_L[0]), mask_device_L.cols (), mask_device_L.rows ());
           pcl::io::saveRgbPNGFile(mask_path_R, reinterpret_cast<unsigned char*> (&mask_host_R[0]), mask_device_R.cols (), mask_device_R.rows ());
         }
+        */
         *pause = true;
         *exit = true;
       }
