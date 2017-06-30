@@ -474,7 +474,7 @@ struct ImageView
         ts_L_device_g_cam_.push_back(t_L_device_g_cam);
         ts_R_device_g_cam_.push_back(t_R_device_g_cam);
       }
-      if (frame_counter == number_of_frame + 1) {
+      if (frame_counter_ == number_of_frame + 1) {
         // Render from all frames
         pcl::device::kinfuLS::Mat33 R_L_device_g_cam_first;
         pcl::device::kinfuLS::Mat33 R_R_device_g_cam_first;
@@ -721,6 +721,8 @@ struct ImageView
   vector< pcl::device::kinfuLS::Mat33 > Rs_R_device_g_cam_;
   vector< float3 > ts_L_device_g_cam_;
   vector< float3 > ts_R_device_g_cam_;
+
+  int frame_counter_;
 #ifdef HAVE_OPENCV
   vector<cv::Mat> views_;
 #endif
