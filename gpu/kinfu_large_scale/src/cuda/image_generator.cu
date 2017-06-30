@@ -1052,9 +1052,14 @@ namespace pcl
     {
       struct Paint3DDirectProjRelativeImage {
         enum { CTA_SIZE_X = 32, CTA_SIZE_Y = 8 };
+        int num_images;
         PtrSz< PtrStep<uchar3> > images;
+        Mat33 Rt_g_cam;
+        float3 tt_g_cam;
         PtrSz< Mat33 > Rs_cam_g;
         PtrSz< float3 > ts_cam_g;
+        PtrSz< Mat33 > Rs_g_cam;
+        PtrSz< float3 > ts_g_cam;
         float fx, fy, cx, cy;
         PtrStep<float> vmap;
         mutable PtrStepSz<uchar3> dst;
@@ -1062,16 +1067,6 @@ namespace pcl
         float colors_weight;
 
         int vmap_cols, vmap_rows;
-
-        __device__ __forceinline__ float3
-        get_ray_next (int x, int y) const
-        {
-          float3 ray_next;
-          ray_next.x = (x - cx) / fx;
-          ray_next.y = (y - cy) / fy;
-          ray_next.z = 1;
-          return ray_next;
-        }
 
         __device__ __forceinline__ float3
         XYZ2uv (float3 XYZ) const
@@ -1083,67 +1078,10 @@ namespace pcl
           return uv;
         }
 
-        __device__ __forceinline__ void
-        linearInterColori (uchar3 c1, uchar3 c2, int p1, int p2, float p,
-            float3 &c) const {
-          float s1, s2;
-          s1 = (p2 - p) / (p2 - p1);
-          s2 = (p - p1) / (p2 - p1);
-          c.x = s1 * c1.x + s2 * c2.x;
-          c.y = s1 * c1.y + s2 * c2.y;
-          c.z = s1 * c1.z + s2 * c2.z;
+        __device__ __forceinline__ float
+        dotfloat3s(float3 f1, float3 f2) const {
+          return f1.x * f2.x + f1.y * f2.y + f1.z * f2.z;
         }
-
-        __device__ __forceinline__ void
-        linearInterColorf (float3 c1, float3 c2, int p1, int p2, float p,
-            float3 &c) const {
-          float s1, s2;
-          s1 = (p2 - p) / (p2 - p1);
-          s2 = (p - p1) / (p2 - p1);
-          c.x = s1 * c1.x + s2 * c2.x;
-          c.y = s1 * c1.y + s2 * c2.y;
-          c.z = s1 * c1.z + s2 * c2.z;
-        }
-
-        __device__ __forceinline__ void
-        projectPixel (float3 uv, PtrStep<uchar3> colors, int rows, int cols,
-            uchar3& pixel, uchar3& mask_pixel) const {
-          int x1 = floor(uv.x);
-          int x2 = ceil(uv.x);
-          int y1 = floor(uv.y);
-          int y2 = ceil(uv.y);
-          pixel = make_uchar3(0, 0, 0);
-          if (x1 >=0 && y1 >=0 && x2 < cols && y2 < rows) {
-            uchar3 p1 = colors.ptr(y1)[x1];
-            uchar3 p2 = colors.ptr(y1)[x2];
-            uchar3 p3 = colors.ptr(y2)[x1];
-            uchar3 p4 = colors.ptr(y2)[x2];
-            float3 p12, p34, p1234;
-            linearInterColori(p1, p2, x1, x2, uv.x, p12);
-            linearInterColori(p3, p4, x1, x2, uv.x, p34);
-            linearInterColorf(p12, p34, y1, y2, uv.y, p1234);
-            pixel.x = min(255, max(0, __float2int_rn(p1234.x)));
-            pixel.y = min(255, max(0, __float2int_rn(p1234.y)));
-            pixel.z = min(255, max(0, __float2int_rn(p1234.z)));
-            mask_pixel = make_uchar3(255, 255, 255);
-          }
-        }
-
-        __device__ __forceinline__ void
-        weightSumPixel(uchar3 pixel_1, uchar3 pixel_2, float weight,
-            uchar3& pixel) const {
-          pixel = make_uchar3(0, 0, 0);
-          if (pixel_1.x != 0 || pixel_1.y != 0 || pixel_1.z != 0 ||
-              pixel_2.x != 0 || pixel_2.y != 0 || pixel_2.z != 0) {
-            float cx = pixel_1.x * weight + pixel_2.x * (1.f - weight);
-            float cy = pixel_1.y * weight + pixel_2.y * (1.f - weight);
-            float cz = pixel_1.z * weight + pixel_2.z * (1.f - weight);
-            pixel.x = min(255, max(0, __float2int_rn(cx)));
-            pixel.y = min(255, max(0, __float2int_rn(cy)));
-            pixel.z = min(255, max(0, __float2int_rn(cz)));
-          }
-        }
-
         __device__ __forceinline__ void
         operator () () const
         {
@@ -1165,13 +1103,37 @@ namespace pcl
           uchar3 result_pixel = make_uchar3(0, 0, 0);
           uchar3 mask_pixel = make_uchar3(0, 0, 0);
           if (!isnan (ray_end.x)) {
-            float3 proj_ray = Rs_cam_g[0] * ray_end + ts_cam_g[0];
-            float3 uv = XYZ2uv(proj_ray);
 
-            uchar3 pixel;
-            projectPixel(uv, images[0], dst.rows, dst.cols, pixel, mask_pixel);
-            uchar3 value = dst.ptr(y)[x];
-            weightSumPixel(pixel, value, colors_weight, result_pixel);
+            float3 zeros = make_float3(0, 0, 0);
+            float3 target_cam_ray = tt_g_cam - ray_end;
+            int index_min_cos_angle = 0;
+            float max_cos_angle = -1;
+
+            for (int i = 0; i < num_images; i++) {
+              // Get the nearest ray
+              float3 cam_ray = ts_g_cam[i] - ray_end;
+              float cos_angle = dot(target_cam_ray, cam_ray) /
+                  (norm(target_cam_ray) * norm(cam_ray));
+              bool is_max = (cos_angle > max_cos_angle);
+
+              // Check data existence
+              bool is_data_exist = false;
+              float3 proj_ray = Rs_cam_g[i] * ray_end + ts_cam_g[i];
+              float3 uv = XYZ2uv(proj_ray);
+              int u = (int) uv.x;
+              int v = (int) uv.y;
+              if (u >=0 && v >=0 && u < dst.cols && v < dst.rows) {
+                is_data_exist = true;
+              }
+
+              // Update color
+              if (is_max && is_data_exist) {
+                max_cos_angle = cos_angle;
+                index_min_cos_angle = i;
+                result_pixel = images[i].ptr(v)[u];
+                mask_pixel = make_uchar3(255, 255, 255);
+              }
+            }
           }
           dst.ptr(y)[x] = result_pixel;
           mask.ptr(y)[x] = mask_pixel;
@@ -1187,8 +1149,12 @@ namespace pcl
       void
       paint3DViewProj(
           const std::vector< PtrStep<uchar3> >& images,
+          const Mat33 Rt_g_cam,
+          const float3 tt_g_cam,
           const std::vector< Mat33 > Rs_cam_g,
           const std::vector< float3 > ts_cam_g,
+          const std::vector< Mat33 > Rs_g_cam,
+          const std::vector< float3 > ts_g_cam,
           float fx, float fy, float cx, float cy,
           const MapArr vmap,
           PtrStepSz<uchar3> dst,
@@ -1199,14 +1165,25 @@ namespace pcl
 
         DeviceArray< PtrStep<uchar3> > images_device;
         images_device.upload(images);
+
         DeviceArray< Mat33 > Rs_device_cam_g;
         Rs_device_cam_g.upload(Rs_cam_g);
         DeviceArray< float3 > ts_device_cam_g;
         ts_device_cam_g.upload(ts_cam_g);
 
+        DeviceArray< Mat33 > Rs_device_g_cam;
+        Rs_device_g_cam.upload(Rs_g_cam);
+        DeviceArray< float3 > ts_device_g_cam;
+        ts_device_g_cam.upload(ts_g_cam);
+
+        p3Ddpri.num_images = images.size();
         p3Ddpri.images = images_device;
+        p3Ddpri.Rt_g_cam = Rt_g_cam;
+        p3Ddpri.tt_g_cam = tt_g_cam;
         p3Ddpri.Rs_cam_g = Rs_device_cam_g;
         p3Ddpri.ts_cam_g = ts_device_cam_g;
+        p3Ddpri.Rs_g_cam = Rs_device_g_cam;
+        p3Ddpri.ts_g_cam = ts_device_g_cam;
         p3Ddpri.fx = fx;
         p3Ddpri.fy = fy;
         p3Ddpri.cx = cx;

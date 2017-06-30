@@ -395,8 +395,12 @@ namespace pcl
         */
       void
       paint3DViewProj(const std::vector< PtrStep<uchar3> >& images,
+                      const Mat33 Rt_g_cam,
+                      const float3 tt_g_cam,
                       const std::vector< Mat33 > Rs_cam_g,
                       const std::vector< float3 > ts_cam_g,
+                      const std::vector< Mat33 > Rs_g_cam,
+                      const std::vector< float3 > ts_g_cam,
                       float fx, float fy, float cx, float cy,
                       const MapArr vmap,
                       PtrStepSz<uchar3> dst,

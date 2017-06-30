@@ -1178,22 +1178,26 @@ namespace pcl
 
       PCL_EXPORTS void
       paint3DViewProj(const std::vector< KinfuTracker::View >& images,
-                      const std::vector< pcl::device::kinfuLS::Mat33 > R_cam_g,
-                      const std::vector< float3 > t_cam_g,
+                      const pcl::device::kinfuLS::Mat33 Rt_g_cam,
+                      const float3 tt_g_cam,
+                      const std::vector< pcl::device::kinfuLS::Mat33 > Rs_cam_g,
+                      const std::vector< float3 > ts_cam_g,
+                      const std::vector< pcl::device::kinfuLS::Mat33 > Rs_g_cam,
+                      const std::vector< float3 > ts_g_cam,
                       float fx, float fy, float cx, float cy,
                       const KinfuTracker::MapArr vmaps,
                       KinfuTracker::View& view,
                       KinfuTracker::View& mask,
                       float colors_weight = 0.5f)
       {
-
-
         std::vector< PtrStep<uchar3> > _images;
         for (int index = 0; index < images.size(); index++) {
           _images.push_back(images.at(index));
         }
         pcl::device::kinfuLS::paint3DViewProj(_images,
-                                              R_cam_g, t_cam_g,
+                                              Rt_g_cam, tt_g_cam,
+                                              Rs_cam_g, ts_cam_g,
+                                              Rs_g_cam, ts_g_cam,
                                               fx, fy, cx, cy,
                                               vmaps,
                                               view, mask, colors_weight);
