@@ -348,6 +348,8 @@ struct ImageView
     viewerDepth_.setWindowTitle ("Kinect Depth stream");
     viewerDepth_.setPosition (640, 500);
     //viewerColor_.setWindowTitle ("Kinect RGB stream");
+
+    frame_counter_ = 0;
   }
 
   void
@@ -365,7 +367,7 @@ struct ImageView
   }
 
   void
-  showScene (KinfuTracker& kinfu, int frame_counter, bool* pause, bool* exit, const PtrStepSz<const pcl::gpu::kinfuLS::PixelRGB>& rgb24, bool registration, Eigen::Affine3f* pose_ptr = 0)
+  showScene (KinfuTracker& kinfu, bool* pause, bool* exit, const PtrStepSz<const pcl::gpu::kinfuLS::PixelRGB>& rgb24, bool registration, Eigen::Affine3f* pose_ptr = 0)
   {
     // Hard code
     // Note: intrinsic of other parts are from Kinect
@@ -441,7 +443,7 @@ struct ImageView
       kinfu.getVMapR(vmapsR);
 
       // Frame 2 is the first usable frame
-      if (frame_counter == 2) {
+      if (frame_counter_ == 0) {
         // Store first frame's poses
         kinfu.getLeftCameraRotation(R_L_host_cam_g_first_);
         kinfu.getRightCameraRotation(R_R_host_cam_g_first_);
@@ -455,7 +457,7 @@ struct ImageView
       }
 
       int number_of_frame = 30;
-      if (frame_counter >= 2) {
+      if (frame_counter_ >= 0) {
         // Store images
         KinfuTracker::View image;
         image.upload(rgb24.data, rgb24.step, rgb24.rows, rgb24.cols);
@@ -635,10 +637,10 @@ struct ImageView
     viewerScene_A_.showRGBImage (reinterpret_cast<unsigned char*> (&view_host_A_[0]), view_device_A_.cols (), view_device_A_.rows ());
 
     // Save png file
-    if (frame_counter >= 1) {
+    //if (frame_counter_ >= 1) {
       //pcl::io::saveRgbPNGFile("./tmp.png", reinterpret_cast<unsigned char*> (&view_host_A_[0]), view_device_A_.cols (), view_device_A_.rows ());
       //*pause = true;
-    }
+    //}
     //viewerColor_.showRGBImage ((unsigned char*)&rgb24.data, rgb24.cols, rgb24.rows);
 #ifdef HAVE_OPENCV
     if (accumulate_views_)
@@ -648,6 +650,7 @@ struct ImageView
       //cv::copy(cv::Mat(480, 640, CV_8UC3, (void*)&view_host_[0]), views_.back());
     }
 #endif
+    frame_counter_ += 1;
   }
 
   void
@@ -1215,7 +1218,7 @@ struct KinFuLSApp
     if (has_image)
     {
       Eigen::Affine3f viewer_pose = getViewerPose(scene_cloud_view_.cloud_viewer_);
-      image_view_.showScene (*kinfu_, frame_counter_, &pause_, &exit_, rgb24, registration_, independent_camera_ ? &viewer_pose : 0);
+      image_view_.showScene (*kinfu_, &pause_, &exit_, rgb24, registration_, independent_camera_ ? &viewer_pose : 0);
 
     }
 
