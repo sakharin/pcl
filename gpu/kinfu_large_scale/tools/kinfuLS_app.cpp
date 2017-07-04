@@ -76,6 +76,7 @@ Work in progress: patch by Marco (AUG,19th 2012)
 
 #include <pcl/common/angles.h>
 
+#define HAVE_OPENCV
 #ifdef HAVE_OPENCV
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -1041,7 +1042,7 @@ struct KinFuLSApp
   enum { PCD_BIN = 1, PCD_ASCII = 2, PLY = 3, MESH_PLY = 7, MESH_VTK = 8 };
 
   KinFuLSApp(pcl::Grabber& source, float vsz, float shiftDistance, int snapshotRate) : exit_ (false), scan_ (false), scan_mesh_(false), scan_volume_ (false), pause_(false), triggered_capture_(true), independent_camera_ (false),
-          registration_ (false), integrate_colors_ (false), pcd_source_ (false), focal_length_(-1.f), capture_ (source), was_lost_(false), time_ms_ (0)
+          registration_ (false), integrate_colors_ (false), pcd_source_ (false), use_external_poses_ (false), focal_length_(-1.f), capture_ (source), was_lost_(false), time_ms_ (0)
   {
     //Init Kinfu Tracker
     Eigen::Vector3f volume_size = Vector3f::Constant (vsz/*meters*/);
@@ -1157,6 +1158,35 @@ struct KinFuLSApp
       cout << "Pause" << endl;
     else if (triggered_capture_ && !pause_)
       cout << "Play" << endl;
+  }
+
+  void toggleExternalPoses(string poses_dir) {
+    cout << "poses_dir:" << poses_dir << endl;
+    cv::FileStorage fs(poses_dir, cv::FileStorage::READ);
+    use_external_poses_ = fs.isOpened();
+    if (use_external_poses_) {
+      cv::Mat p;
+      fs["R"] >> p;
+
+      vector< KinfuTracker::Matrix3frm > Rs;
+      vector< KinfuTracker::Vector3f > ts;
+
+      for (int i = 0; i < p.cols / 4; i++) {
+        KinfuTracker::Matrix3frm R;
+        KinfuTracker::Vector3f t;
+        int idx = i * 4;
+        R << p.at<double>(0, idx + 0), p.at<double>(0, idx + 1), p.at<double>(0, idx + 2),
+             p.at<double>(1, idx + 0), p.at<double>(1, idx + 1), p.at<double>(1, idx + 2),
+             p.at<double>(2, idx + 0), p.at<double>(2, idx + 1), p.at<double>(2, idx + 2);
+        t << p.at<double>(0, idx + 3), p.at<double>(1, idx + 3), p.at<double>(2, idx + 3);
+        Rs.push_back(R);
+        ts.push_back(t);
+      }
+
+      kinfu_->setGlobalCameraPoses(Rs, ts);
+    } else {
+      cout << "Cannot read external poses." << endl;
+    }
   }
 
   void execute(const PtrStepSz<const unsigned short>& depth, const PtrStepSz<const pcl::gpu::kinfuLS::PixelRGB>& rgb24, bool has_data)
@@ -1470,6 +1500,7 @@ struct KinFuLSApp
   bool registration_;
   bool integrate_colors_;
   bool pcd_source_;
+  bool use_external_poses_;
   float focal_length_;
 
   pcl::Grabber& capture_;
@@ -1693,6 +1724,12 @@ main (int argc, char* argv[])
   pc::parse_argument (argc, argv, "-sr", snapshot_rate);
 
   KinFuLSApp app (*capture, volume_size, shift_distance, snapshot_rate);
+
+  if (pc::find_switch (argc, argv, "--poses")) {
+    string poses_dir;
+    pc::parse_argument(argc, argv, "--poses", poses_dir);
+    app.toggleExternalPoses(poses_dir);
+  }
 
   if (pc::parse_argument (argc, argv, "-eval", eval_folder) > 0)
     app.toggleEvaluationMode(eval_folder, match_file);

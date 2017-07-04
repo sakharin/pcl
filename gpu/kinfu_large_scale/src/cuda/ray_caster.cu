@@ -68,8 +68,8 @@ namespace pcl
       {
         enum { CTA_SIZE_X = 32, CTA_SIZE_Y = 8 };
 
-        Mat33 Rcurr;
-        float3 tcurr;
+        Mat33 R_g_cam;
+        float3 t_g_cam;
 
         float time_step;
         float3 volume_size;
@@ -203,8 +203,8 @@ namespace pcl
           vmap.ptr (y)[x] = numeric_limits<float>::quiet_NaN ();
           nmap.ptr (y)[x] = numeric_limits<float>::quiet_NaN ();
 
-          float3 ray_start = tcurr;
-          float3 ray_next = Rcurr * get_ray_next (x, y) + tcurr;
+          float3 ray_start = t_g_cam;
+          float3 ray_next = R_g_cam * get_ray_next (x, y) + t_g_cam;
 
           float3 ray_dir = normalized (ray_next - ray_start);
 
@@ -321,14 +321,14 @@ namespace pcl
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
       void
-      raycast (const Intr& intr, const Mat33& Rcurr, const float3& tcurr,
+      raycast (const Intr& intr, const Mat33& R_g_cam, const float3& t_g_cam,
                             float tranc_dist, const float3& volume_size,
                             const PtrStep<short2>& volume, const pcl::gpu::kinfuLS::tsdf_buffer* buffer, MapArr& vmap, MapArr& nmap)
       {
         RayCaster rc;
 
-        rc.Rcurr = Rcurr;
-        rc.tcurr = tcurr;
+        rc.R_g_cam = R_g_cam;
+        rc.t_g_cam = t_g_cam;
 
         rc.time_step = tranc_dist * 0.8f;
 

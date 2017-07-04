@@ -147,10 +147,16 @@ namespace pcl
           setRelativeLeftCameraPosition(float x = -0.06f, float y = 0.0f, float z = 0.0f);
 
           /** \brief Gets relative left camera rotation and translation with respect to the right camera position.
-            * \param[out] rotation 3x3 rotation matrix
-            * \param[out] translation 3x1 translation vector
+            * \param[out] relative_R_L_R 3x3 rotation matrix
+            * \param[out] relative_t_L_R 3x1 translation vector
             */
-          void getRelativeLeftCameraPose(Matrix3frm& rotation, Vector3f& translation);
+          void getRelativeLeftCameraPose(Matrix3frm& relative_R_L_R, Vector3f& relative_t_L_R);
+
+          /** \brief Set camera poses.
+            * \param[in] Rs_cam_g vector of rotation 3x3 rotation matrices
+            * \param[in] ts_cam_g vector of translation 3x1 translation vectors
+            */
+          void setGlobalCameraPoses(std::vector< Matrix3frm> Rs_cam_g, std::vector< Vector3f > ts_cam_g);
 
           /** \brief Gets global left camera rotation.
             * \param[out] rotation 3x3 rotation matrix
@@ -226,7 +232,7 @@ namespace pcl
            * \param[out] vmaps vertex map
            * \param[out] nmaps normal map
            */
-          void getVNMaps(Matrix3frm& rotation, Vector3f& translation, MapArr& vmaps, MapArr& nmaps);
+          void getVNMaps(Matrix3frm& R_g_cam, Vector3f& t_g_cam, MapArr& vmaps, MapArr& nmaps);
 
           /** \brief Performs initialization for color integration. Must be called before calling color integration.
             * \param[in] max_weight max weighe for color integration. -1 means default weight.
@@ -485,19 +491,19 @@ namespace pcl
           float angleThres_;
 
           /** \brief Depth pyramid. */
-          std::vector<DepthMap> depths_curr_;
+          std::vector<DepthMap> depths_curr_R_;
 
           /** \brief Vertex maps pyramid for current frame in global coordinate space. */
-          std::vector<MapArr> vmaps_g_curr_;
+          std::vector<MapArr> vmaps_g_curr_R_;
 
           /** \brief Normal maps pyramid for current frame in global coordinate space. */
-          std::vector<MapArr> nmaps_g_curr_;
+          std::vector<MapArr> nmaps_g_curr_R_;
 
           /** \brief Vertex maps pyramid for previous frame in global coordinate space. */
-          std::vector<MapArr> vmaps_g_prev_;
+          std::vector<MapArr> vmaps_g_prev_R_;
 
           /** \brief Normal maps pyramid for previous frame in global coordinate space. */
-          std::vector<MapArr> nmaps_g_prev_;
+          std::vector<MapArr> nmaps_g_prev_R_;
 
           /** \brief Vertex maps pyramid for previous frame in global coordinate space. */
           std::vector<MapArr> vmaps_g_prev_L_;
@@ -506,19 +512,19 @@ namespace pcl
           std::vector<MapArr> nmaps_g_prev_L_;
 
           /** \brief Vertex maps pyramid for current frame in current coordinate space. */
-          std::vector<MapArr> vmaps_curr_;
+          std::vector<MapArr> vmaps_curr_R_;
 
           /** \brief Normal maps pyramid for current frame in current coordinate space. */
-          std::vector<MapArr> nmaps_curr_;
+          std::vector<MapArr> nmaps_curr_R_;
 
           /** \brief Vertex maps pyramid for previous frame in current coordinate space. */
-          std::vector<MapArr> vmaps_prev_;
+          std::vector<MapArr> vmaps_prev_R_;
 
           /** \brief Normal maps pyramid for previous frame in current coordinate space. */
-          std::vector<MapArr> nmaps_prev_;
+          std::vector<MapArr> nmaps_prev_R_;
 
           /** \brief Array of buffers with ICP correspondences for each pyramid level. */
-          std::vector<CorespMap> coresps_;
+          std::vector<CorespMap> coresps_R_;
 
           /** \brief Buffer for storing scaled depth image */
           DeviceArray2D<float> depthRawScaled_;
@@ -560,37 +566,44 @@ namespace pcl
           Vector3f last_estimated_translation_;
 
           /** \brief Current estimated rotation of the left camera */
-          Matrix3frm current_global_L_rotation_;
+          Matrix3frm current_R_L_g_cam_;
 
           /** \brief Current estimated translation of the left camera */
-          Vector3f current_global_L_translation_;
+          Vector3f current_t_L_g_cam_;
 
           /** \brief Current estimated rotation of the right camera */
-          Matrix3frm current_global_R_rotation_;
+          Matrix3frm current_R_R_g_cam_;
 
           /** \brief Current estimated translation of the right camera */
-          Vector3f current_global_R_translation_;
+          Vector3f current_t_R_g_cam_;
 
           /** \brief Current estimated inversed rotation of the left camera
            * (camera to global) */
-          Matrix3frm current_camera_L_rotation_;
+          Matrix3frm current_R_L_cam_g_;
 
           /** \brief Current estimated inversed rotation of the right camera
            * (camera to global) */
-          Matrix3frm current_camera_R_rotation_;
+          Matrix3frm current_R_R_cam_g_;
 
           /** \brief Current estimated inversed translation of the left camera */
-          Vector3f current_camera_L_translation_;
+          Vector3f current_t_L_cam_g_;
 
           /** \brief Current estimated inversed translation of the right camera */
-          Vector3f current_camera_R_translation_;
+          Vector3f current_t_R_cam_g_;
 
-          /** \brief Relative left camera rotation with respect to the right camera position */
-          Matrix3frm relative_L_camera_rotation_;
+          /** \brief Relative left camera rotation with respect to the right camera rotation */
+          Matrix3frm relative_R_L_R_;
 
-          /** \brief Relative left camera translation with respect to the right camera position
-           * (position of left camera with respect to right camera in right camera's frame)*/
-          Vector3f relative_L_camera_translation_;
+          /** \brief Relative right camera rotation with respect to the left camera rotation*/
+          Matrix3frm relative_R_R_L_;
+
+          /** \brief Relative left camera translation with respect to the right camera
+           * (pose of the right camera in the left camera's frame)*/
+          Vector3f relative_t_L_R_;
+
+          /** \brief Relative right camera translation with respect to the left camera
+           * (pose of the left camera in the right camera's frame)*/
+          Vector3f relative_t_R_L_;
 
           std::vector<Matrix3frm> R_L_cam_g_;
           std::vector<Matrix3frm> R_R_cam_g_;
@@ -605,6 +618,8 @@ namespace pcl
 
           /** \brief True or false depending on if there was a shift in the last pose update */
           bool has_shifted_;
+
+          bool use_external_poses_;
 
         public:
           EIGEN_MAKE_ALIGNED_OPERATOR_NEW

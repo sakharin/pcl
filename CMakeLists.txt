@@ -415,6 +415,9 @@ if(WITH_OPENGL)
   include("${PCL_SOURCE_DIR}/cmake/pcl_find_gl.cmake")
 endif(WITH_OPENGL)
 
+# OpenCV
+find_package(OpenCV)
+
 # Boost (required)
 include("${PCL_SOURCE_DIR}/cmake/pcl_find_boost.cmake")
 

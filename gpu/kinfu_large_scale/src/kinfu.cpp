@@ -76,7 +76,7 @@ namespace pcl
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 pcl::gpu::kinfuLS::KinfuTracker::KinfuTracker (const Eigen::Vector3f &volume_size, const float shiftingDistance, int rows, int cols) :
-  cyclical_( DISTANCE_THRESHOLD, VOLUME_SIZE, VOLUME_X), rows_(rows), cols_(cols), global_time_(0), max_icp_distance_(0), integration_metric_threshold_(0.f), perform_last_scan_ (false), finished_(false), lost_ (false), disable_icp_ (false)
+  cyclical_( DISTANCE_THRESHOLD, VOLUME_SIZE, VOLUME_X), rows_(rows), cols_(cols), global_time_(0), max_icp_distance_(0), integration_metric_threshold_(0.f), perform_last_scan_ (false), finished_(false), lost_ (false), disable_icp_ (false), use_external_poses_(false)
 {
   //const Vector3f volume_size = Vector3f::Constant (VOLUME_SIZE);
   const Vector3i volume_resolution (VOLUME_X, VOLUME_Y, VOLUME_Z);
@@ -158,15 +158,47 @@ pcl::gpu::kinfuLS::KinfuTracker::setCameraMovementThreshold(float threshold)
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void
 pcl::gpu::kinfuLS::KinfuTracker::setRelativeLeftCameraPosition(float x, float y, float z) {
-  relative_L_camera_rotation_ = Eigen::Matrix3f::Identity();
-  relative_L_camera_translation_ = Vector3f(x, y, z);
+  relative_R_L_R_ = Eigen::Matrix3f::Identity();
+  relative_t_L_R_ = Vector3f(x, y, z);
+
+  relative_R_R_L_ = relative_R_L_R_.inverse();
+  relative_t_R_L_ = -relative_R_R_L_ * relative_t_L_R_;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void
-pcl::gpu::kinfuLS::KinfuTracker::getRelativeLeftCameraPose(Matrix3frm& rotation, Vector3f& translation) {
-  rotation = relative_L_camera_rotation_;
-  translation = relative_L_camera_translation_;
+pcl::gpu::kinfuLS::KinfuTracker::getRelativeLeftCameraPose(Matrix3frm& relative_R_L_R, Vector3f& relative_t_L_R) {
+  relative_R_L_R = relative_R_L_R_;
+  relative_t_L_R = relative_t_L_R_;
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void
+pcl::gpu::kinfuLS::KinfuTracker::setGlobalCameraPoses(vector< Matrix3frm > Rs_cam_g, vector< Vector3f > ts_cam_g) {
+  for(int i = 0; i < Rs_cam_g.size(); i++) {
+    Matrix3frm R_R_cam_g = Rs_cam_g.at(i);
+    Vector3f t_R_cam_g = ts_cam_g.at(i);
+
+    Matrix3frm R_R_g_cam = R_R_cam_g.inverse();
+    Vector3f t_R_g_cam = -R_R_g_cam * t_R_cam_g;
+
+    Matrix3frm R_L_cam_g = relative_R_L_R_ * R_R_cam_g;
+    Vector3f t_L_cam_g = relative_R_L_R_ * t_R_cam_g + relative_t_L_R_;
+
+    Matrix3frm R_L_g_cam = R_L_cam_g.inverse();
+    Vector3f t_L_g_cam = -R_L_g_cam * t_L_cam_g;
+
+    R_L_cam_g_.push_back(R_L_cam_g);
+    R_R_cam_g_.push_back(R_R_cam_g);
+    R_L_g_cam_.push_back(R_L_g_cam);
+    R_R_g_cam_.push_back(R_R_g_cam);
+
+    t_L_cam_g_.push_back(t_L_cam_g);
+    t_R_cam_g_.push_back(t_R_cam_g);
+    t_L_g_cam_.push_back(t_L_g_cam);
+    t_R_g_cam_.push_back(t_R_g_cam);
+  }
+  use_external_poses_ = true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -175,7 +207,7 @@ pcl::gpu::kinfuLS::KinfuTracker::getGlobalLeftCameraRotation(Matrix3frm& rotatio
   if (index != -1 && index >= 0 && index < R_L_g_cam_.size() - 1) {
     rotation = R_L_g_cam_.at(index);
   } else {
-    rotation = current_global_L_rotation_;
+    rotation = current_R_L_g_cam_;
   }
 }
 
@@ -185,7 +217,7 @@ pcl::gpu::kinfuLS::KinfuTracker::getGlobalRightCameraRotation(Matrix3frm& rotati
   if (index != -1 && index >= 0 && index < R_R_g_cam_.size() - 1) {
     rotation = R_R_g_cam_.at(index);
   } else {
-    rotation = current_global_R_rotation_;
+    rotation = current_R_R_g_cam_;
   }
 }
 
@@ -195,7 +227,7 @@ pcl::gpu::kinfuLS::KinfuTracker::getGlobalLeftCameraTranslation(Vector3f& transl
   if (index != -1 && index >= 0 && index < t_L_g_cam_.size() - 1) {
     translation = t_L_g_cam_.at(index);
   } else {
-    translation = current_global_L_translation_;
+    translation = current_t_L_g_cam_;
   }
 }
 
@@ -205,7 +237,7 @@ pcl::gpu::kinfuLS::KinfuTracker::getGlobalRightCameraTranslation(Vector3f& trans
   if (index != -1 && index >= 0 && index < t_R_g_cam_.size() - 1) {
     translation = t_R_g_cam_.at(index);
   } else {
-    translation = current_global_R_translation_;
+    translation = current_t_R_g_cam_;
   }
 }
 
@@ -215,7 +247,7 @@ pcl::gpu::kinfuLS::KinfuTracker::getLeftCameraRotation(Matrix3frm& rotation, int
   if (index != -1 && index >= 0 && index < R_L_cam_g_.size() - 1) {
     rotation = R_L_cam_g_.at(index);
   } else {
-    rotation = current_camera_L_rotation_;
+    rotation = current_R_L_cam_g_;
   }
 }
 
@@ -225,7 +257,7 @@ pcl::gpu::kinfuLS::KinfuTracker::getRightCameraRotation(Matrix3frm& rotation, in
   if (index != -1 && index >= 0 && index < R_R_cam_g_.size() - 1) {
     rotation = R_R_cam_g_.at(index);
   } else {
-    rotation = current_camera_R_rotation_;
+    rotation = current_R_R_cam_g_;
   }
 }
 
@@ -235,7 +267,7 @@ pcl::gpu::kinfuLS::KinfuTracker::getLeftCameraTranslation(Vector3f& translation,
   if (index != -1 && index >= 0 && index < t_L_cam_g_.size() - 1) {
     translation = t_L_cam_g_.at(index);
   } else {
-    translation = current_camera_L_translation_;
+    translation = current_t_L_cam_g_;
   }
 }
 
@@ -245,7 +277,7 @@ pcl::gpu::kinfuLS::KinfuTracker::getRightCameraTranslation(Vector3f& translation
   if (index != -1 && index >= 0 && index < t_R_cam_g_.size() - 1) {
     translation = t_R_cam_g_.at(index);
   } else {
-    translation = current_camera_R_translation_;
+    translation = current_t_R_cam_g_;
   }
 }
 
@@ -256,7 +288,7 @@ void pcl::gpu::kinfuLS::KinfuTracker::getVMapL(MapArr& vmaps) {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void pcl::gpu::kinfuLS::KinfuTracker::getVMapR(MapArr& vmaps) {
-  vmaps = vmaps_g_prev_[0];
+  vmaps = vmaps_g_prev_R_[0];
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -266,11 +298,11 @@ void pcl::gpu::kinfuLS::KinfuTracker::getNMapL(MapArr& nmaps) {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void pcl::gpu::kinfuLS::KinfuTracker::getNMapR(MapArr& nmaps) {
-  nmaps = nmaps_g_prev_[0];
+  nmaps = nmaps_g_prev_R_[0];
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void pcl::gpu::kinfuLS::KinfuTracker::getVNMaps(Matrix3frm& rotation, Vector3f& translation, MapArr& vmaps, MapArr& nmaps) {
+void pcl::gpu::kinfuLS::KinfuTracker::getVNMaps(Matrix3frm& R_g_cam, Vector3f& t_g_cam, MapArr& vmaps, MapArr& nmaps) {
   // Intrisics of the camera
   Intr intr (fx_, fy_, cx_, cy_);
 
@@ -293,15 +325,15 @@ void pcl::gpu::kinfuLS::KinfuTracker::getVNMaps(Matrix3frm& rotation, Vector3f& 
   }
 
   // Convert pose
-  Mat33 device_current_rotation;
-  float3 device_current_translation;
-  convertTransforms(rotation,
-                    translation,
-                    device_current_rotation,
-                    device_current_translation);
+  Mat33 R_device_g_cam;
+  float3 t_device_g_cam;
+  convertTransforms(R_g_cam,
+                    t_g_cam,
+                    R_device_g_cam,
+                    t_device_g_cam);
 
   // Generate synthetic vertex and normal maps
-  raycast(intr, device_current_rotation, device_current_translation, tsdf_volume_->getTsdfTruncDist (), device_volume_size, tsdf_volume_->data (), getCyclicalBufferStructure (), vmaps_tmp[0], nmaps_tmp[0]);
+  raycast(intr, R_device_g_cam, t_device_g_cam, tsdf_volume_->getTsdfTruncDist (), device_volume_size, tsdf_volume_->data (), getCyclicalBufferStructure (), vmaps_tmp[0], nmaps_tmp[0]);
   vmaps = vmaps_tmp[0];
   nmaps = nmaps_tmp[0];
 }
@@ -409,45 +441,45 @@ pcl::gpu::kinfuLS::KinfuTracker::reset ()
 void
 pcl::gpu::kinfuLS::KinfuTracker::allocateBufffers (int rows, int cols)
 {
-  depths_curr_.resize (LEVELS);
-  vmaps_g_curr_.resize (LEVELS);
-  nmaps_g_curr_.resize (LEVELS);
+  depths_curr_R_.resize (LEVELS);
+  vmaps_g_curr_R_.resize (LEVELS);
+  nmaps_g_curr_R_.resize (LEVELS);
 
-  vmaps_g_prev_.resize (LEVELS);
-  nmaps_g_prev_.resize (LEVELS);
+  vmaps_g_prev_R_.resize (LEVELS);
+  nmaps_g_prev_R_.resize (LEVELS);
   vmaps_g_prev_L_.resize (LEVELS);
   nmaps_g_prev_L_.resize (LEVELS);
 
-  vmaps_curr_.resize (LEVELS);
-  nmaps_curr_.resize (LEVELS);
+  vmaps_curr_R_.resize (LEVELS);
+  nmaps_curr_R_.resize (LEVELS);
 
-  vmaps_prev_.resize (LEVELS);
-  nmaps_prev_.resize (LEVELS);
+  vmaps_prev_R_.resize (LEVELS);
+  nmaps_prev_R_.resize (LEVELS);
 
-  coresps_.resize (LEVELS);
+  coresps_R_.resize (LEVELS);
 
   for (int i = 0; i < LEVELS; ++i)
   {
     int pyr_rows = rows >> i;
     int pyr_cols = cols >> i;
 
-    depths_curr_[i].create (pyr_rows, pyr_cols);
+    depths_curr_R_[i].create (pyr_rows, pyr_cols);
 
-    vmaps_g_curr_[i].create (pyr_rows*3, pyr_cols);
-    nmaps_g_curr_[i].create (pyr_rows*3, pyr_cols);
+    vmaps_g_curr_R_[i].create (pyr_rows*3, pyr_cols);
+    nmaps_g_curr_R_[i].create (pyr_rows*3, pyr_cols);
 
-    vmaps_g_prev_[i].create (pyr_rows*3, pyr_cols);
-    nmaps_g_prev_[i].create (pyr_rows*3, pyr_cols);
+    vmaps_g_prev_R_[i].create (pyr_rows*3, pyr_cols);
+    nmaps_g_prev_R_[i].create (pyr_rows*3, pyr_cols);
     vmaps_g_prev_L_[i].create (pyr_rows*3, pyr_cols);
     nmaps_g_prev_L_[i].create (pyr_rows*3, pyr_cols);
 
-    vmaps_curr_[i].create (pyr_rows*3, pyr_cols);
-    nmaps_curr_[i].create (pyr_rows*3, pyr_cols);
+    vmaps_curr_R_[i].create (pyr_rows*3, pyr_cols);
+    nmaps_curr_R_[i].create (pyr_rows*3, pyr_cols);
 
-    vmaps_prev_[i].create (pyr_rows*3, pyr_cols);
-    nmaps_prev_[i].create (pyr_rows*3, pyr_cols);
+    vmaps_prev_R_[i].create (pyr_rows*3, pyr_cols);
+    nmaps_prev_R_[i].create (pyr_rows*3, pyr_cols);
 
-    coresps_[i].create (pyr_rows, pyr_cols);
+    coresps_R_[i].create (pyr_rows, pyr_cols);
   }
   depthRawScaled_.create (rows, cols);
   // see estimate tranform for the magic numbers
@@ -485,21 +517,21 @@ inline void
 pcl::gpu::kinfuLS::KinfuTracker::prepareMaps (const DepthMap& depth_raw, const Intr& cam_intrinsics)
 {
   // blur raw map
-  bilateralFilter (depth_raw, depths_curr_[0]);
+  bilateralFilter (depth_raw, depths_curr_R_[0]);
 
   // optionally remove points that are farther than a threshold
   if (max_icp_distance_ > 0)
-    truncateDepth(depths_curr_[0], max_icp_distance_);
+    truncateDepth(depths_curr_R_[0], max_icp_distance_);
 
   // downsample map for each pyramid level
   for (int i = 1; i < LEVELS; ++i)
-    pyrDown (depths_curr_[i-1], depths_curr_[i]);
+    pyrDown (depths_curr_R_[i-1], depths_curr_R_[i]);
 
   // create vertex and normal maps for each pyramid level
   for (int i = 0; i < LEVELS; ++i)
   {
-    createVMap (cam_intrinsics(i), depths_curr_[i], vmaps_curr_[i]);
-    computeNormalsEigen (vmaps_curr_[i], nmaps_curr_[i]);
+    createVMap (cam_intrinsics(i), depths_curr_R_[i], vmaps_curr_R_[i]);
+    computeNormalsEigen (vmaps_curr_R_[i], nmaps_curr_R_[i]);
   }
 
 }
@@ -513,7 +545,7 @@ pcl::gpu::kinfuLS::KinfuTracker::saveCurrentMaps()
   // save vertex and normal maps for each level, keeping camera coordinates (i.e. no transform)
   for (int i = 0; i < LEVELS; ++i)
   {
-   transformMaps (vmaps_curr_[i], nmaps_curr_[i],identity_rotation, make_float3(0,0,0), vmaps_prev_[i], nmaps_prev_[i]);
+   transformMaps (vmaps_curr_R_[i], nmaps_curr_R_[i],identity_rotation, make_float3(0,0,0), vmaps_prev_R_[i], nmaps_prev_R_[i]);
   }
 }
 
@@ -554,37 +586,37 @@ pcl::gpu::kinfuLS::KinfuTracker::performICP(const Intr& cam_intrinsics, Matrix3f
       int iter_num = icp_iterations_[level_index];
 
       // current vertex and normal maps
-      MapArr& vmap_curr = vmaps_curr_[level_index];
-      MapArr& nmap_curr = nmaps_curr_[level_index];
+      MapArr& vmap_curr_R = vmaps_curr_R_[level_index];
+      MapArr& nmap_curr_R = nmaps_curr_R_[level_index];
 
       // previous vertex and normal maps
-      MapArr& vmap_g_prev = vmaps_g_prev_[level_index];
-      MapArr& nmap_g_prev = nmaps_g_prev_[level_index];
+      MapArr& vmap_g_prev_R = vmaps_g_prev_R_[level_index];
+      MapArr& nmap_g_prev_R = nmaps_g_prev_R_[level_index];
 
       // We need to transform the maps from global to local coordinates
       Mat33&  rotation_id = device_cast<Mat33> (rmats_[0]); // Identity Rotation Matrix. Because we only need translation
       float3 cube_origin = (getCyclicalBufferStructure ())->origin_metric;
       cube_origin = -cube_origin;
 
-      MapArr& vmap_temp = vmap_g_prev;
-      MapArr& nmap_temp = nmap_g_prev;
-      transformMaps (vmap_temp, nmap_temp, rotation_id, cube_origin, vmap_g_prev, nmap_g_prev);
+      MapArr& vmap_temp_R = vmap_g_prev_R;
+      MapArr& nmap_temp_R = nmap_g_prev_R;
+      transformMaps (vmap_temp_R, nmap_temp_R, rotation_id, cube_origin, vmap_g_prev_R, nmap_g_prev_R);
 
       // run ICP for iter_num iterations (return false when lost)
       for (int iter = 0; iter < iter_num; ++iter)
       {
         //CONVERT POSES TO DEVICE TYPES
         // CURRENT LOCAL POSE
-        Mat33    device_current_rotation = device_cast<Mat33> (current_global_rotation); // We do not deal with changes in rotations
-        float3 device_current_translation_local = device_cast<float3> (current_global_translation);
-        device_current_translation_local -= getCyclicalBufferStructure ()->origin_metric;
+        Mat33 R_device_R_g_cam = device_cast<Mat33> (current_global_rotation); // We do not deal with changes in rotations
+        float3 t_device_R_g_cam = device_cast<float3> (current_global_translation);
+        t_device_R_g_cam -= getCyclicalBufferStructure ()->origin_metric;
 
         Eigen::Matrix<double, 6, 6, Eigen::RowMajor> A;
         Eigen::Matrix<double, 6, 1> b;
 
         // call the ICP function (see paper by Kok-Lim Low "Linear Least-squares Optimization for Point-to-Plane ICP Surface Registration")
-        estimateCombined (device_current_rotation, device_current_translation_local, vmap_curr, nmap_curr, device_cam_rot_local_prev_inv, device_cam_trans_local_prev, cam_intrinsics (level_index),
-                          vmap_g_prev, nmap_g_prev, distThres_, angleThres_, gbuf_, sumbuf_, A.data (), b.data ());
+        estimateCombined (R_device_R_g_cam, t_device_R_g_cam, vmap_curr_R, nmap_curr_R, device_cam_rot_local_prev_inv, device_cam_trans_local_prev, cam_intrinsics (level_index),
+                          vmap_g_prev_R, nmap_g_prev_R, distThres_, angleThres_, gbuf_, sumbuf_, A.data (), b.data ());
 
         // checking nullspace
         double det = A.determinant ();
@@ -647,12 +679,12 @@ pcl::gpu::kinfuLS::KinfuTracker::performPairWiseICP(const Intr cam_intrinsics, M
       int iter_num = icp_iterations_[level_index];
 
       // current vertex and normal maps
-      MapArr& vmap_curr = vmaps_curr_[level_index];
-      MapArr& nmap_curr = nmaps_curr_[level_index];
+      MapArr& vmap_curr_R = vmaps_curr_R_[level_index];
+      MapArr& nmap_curr_R = nmaps_curr_R_[level_index];
 
       // previous vertex and normal maps
-      MapArr& vmap_prev = vmaps_prev_[level_index];
-      MapArr& nmap_prev = nmaps_prev_[level_index];
+      MapArr& vmap_prev_R = vmaps_prev_R_[level_index];
+      MapArr& nmap_prev_R = nmaps_prev_R_[level_index];
 
       // no need to transform maps from global to local since they are both in camera coordinates
 
@@ -661,15 +693,15 @@ pcl::gpu::kinfuLS::KinfuTracker::performPairWiseICP(const Intr cam_intrinsics, M
       {
         //CONVERT POSES TO DEVICE TYPES
         // CURRENT LOCAL POSE
-        Mat33  device_current_rotation = device_cast<Mat33> (current_rotation);
-        float3 device_current_translation_local = device_cast<float3> (current_translation);
+        Mat33  R_device_R_g_cam = device_cast<Mat33> (current_rotation);
+        float3 t_device_R_g_cam = device_cast<float3> (current_translation);
 
         Eigen::Matrix<double, 6, 6, Eigen::RowMajor> A;
         Eigen::Matrix<double, 6, 1> b;
 
         // call the ICP function (see paper by Kok-Lim Low "Linear Least-squares Optimization for Point-to-Plane ICP Surface Registration")
-        estimateCombined (device_current_rotation, device_current_translation_local, vmap_curr, nmap_curr, device_cam_rot_prev_inv, device_cam_trans_prev, cam_intrinsics (level_index),
-                          vmap_prev, nmap_prev, distThres_, angleThres_, gbuf_, sumbuf_, A.data (), b.data ());
+        estimateCombined (R_device_R_g_cam, t_device_R_g_cam, vmap_curr_R, nmap_curr_R, device_cam_rot_prev_inv, device_cam_trans_prev, cam_intrinsics (level_index),
+                          vmap_prev_R, nmap_prev_R, distThres_, angleThres_, gbuf_, sumbuf_, A.data (), b.data ());
 
         // checking nullspace
         double det = A.determinant ();
@@ -755,7 +787,7 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
 
     // transform vertex and normal maps for each pyramid level
     for (int i = 0; i < LEVELS; ++i)
-      transformMaps (vmaps_curr_[i], nmaps_curr_[i], device_initial_cam_rot, device_initial_cam_trans, vmaps_g_prev_[i], nmaps_g_prev_[i]);
+      transformMaps (vmaps_curr_R_[i], nmaps_curr_R_[i], device_initial_cam_rot, device_initial_cam_trans, vmaps_g_prev_R_[i], nmaps_g_prev_R_[i]);
 
     if(perform_last_scan_)
       finished_ = true;
@@ -767,90 +799,111 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
     // return and wait for next frame
 
     // Right camera rotation and translation
-    current_global_R_rotation_ = initial_cam_rot;
-    current_global_R_translation_ = initial_cam_trans;
+    current_R_R_g_cam_ = initial_cam_rot;
+    current_t_R_g_cam_ = initial_cam_trans;
 
     // Left camera rotations and translations
-    current_global_L_rotation_ = current_global_R_rotation_ * relative_L_camera_rotation_;
-    current_global_L_translation_ = current_global_R_translation_ + relative_L_camera_translation_;
+    current_R_L_g_cam_ = current_R_R_g_cam_ * relative_R_R_L_;
+    current_t_L_g_cam_ = current_R_R_g_cam_ * relative_t_R_L_ + current_t_R_g_cam_;
 
-    current_camera_L_rotation_ = current_global_L_rotation_.inverse ();
-    current_camera_R_rotation_ = current_global_R_rotation_.inverse ();
+    current_R_L_cam_g_ = current_R_L_g_cam_.inverse ();
+    current_R_R_cam_g_ = current_R_R_g_cam_.inverse ();
 
-    current_camera_L_translation_ = -current_camera_L_rotation_ * current_global_L_translation_;
-    current_camera_R_translation_ = -current_camera_R_rotation_ * current_global_R_translation_;
+    current_t_L_cam_g_ = -current_R_L_cam_g_ * current_t_L_g_cam_;
+    current_t_R_cam_g_ = -current_R_R_cam_g_ * current_t_R_g_cam_;
 
-    R_L_cam_g_.push_back(current_camera_L_rotation_);
-    R_R_cam_g_.push_back(current_camera_R_rotation_);
-    R_L_g_cam_.push_back(current_global_L_rotation_);
-    R_R_g_cam_.push_back(current_global_R_rotation_);
-    t_L_cam_g_.push_back(current_camera_L_translation_);
-    t_R_cam_g_.push_back(current_camera_R_translation_);
-    t_L_g_cam_.push_back(current_global_L_translation_);
-    t_R_g_cam_.push_back(current_global_R_translation_);
+    R_L_cam_g_.push_back(current_R_L_cam_g_);
+    R_R_cam_g_.push_back(current_R_R_cam_g_);
+    R_L_g_cam_.push_back(current_R_L_g_cam_);
+    R_R_g_cam_.push_back(current_R_R_g_cam_);
+    t_L_cam_g_.push_back(current_t_L_cam_g_);
+    t_R_cam_g_.push_back(current_t_R_cam_g_);
+    t_L_g_cam_.push_back(current_t_L_g_cam_);
+    t_R_g_cam_.push_back(current_t_R_g_cam_);
     return (false);
   }
 
-  ///////////////////////////////////////////////////////////////////////////////////////////
-  // Iterative Closest Point
-  // Get the last-known pose
-  Matrix3frm last_known_global_rotation = rmats_[global_time_ - 1];            // [Ri|ti] - pos of camera, i.e.
-  Vector3f   last_known_global_translation = tvecs_[global_time_ - 1];          // transform from camera to global coo space for (i-1)th camera pose
-  // Declare variables to host ICP results
-  // Call ICP
-  if(!performICP(intr, last_known_global_rotation, last_known_global_translation, current_global_R_rotation_, current_global_R_translation_))
-  {
-    // ICP based on synthetic maps failed -> try to estimate the current camera pose based on previous and current raw maps
-    Matrix3frm delta_rotation;
-    Vector3f delta_translation;
-    if(!performPairWiseICP(intr, delta_rotation, delta_translation))
+  Matrix3frm last_known_global_rotation;
+  Vector3f   last_known_global_translation;
+  if (use_external_poses_) {
+    current_R_L_cam_g_ = R_L_cam_g_[global_time_];
+    current_R_R_cam_g_ = R_R_cam_g_[global_time_];
+    current_R_L_g_cam_ = R_L_g_cam_[global_time_];
+    current_R_R_g_cam_ = R_R_g_cam_[global_time_];
+    current_t_L_cam_g_ = t_L_cam_g_[global_time_];
+    current_t_R_cam_g_ = t_R_cam_g_[global_time_];
+    current_t_L_g_cam_ = t_L_g_cam_[global_time_];
+    current_t_R_g_cam_ = t_R_g_cam_[global_time_];
+
+    last_known_global_rotation = R_R_cam_g_[global_time_];
+    last_known_global_translation = t_R_cam_g_[global_time_];
+
+    current_R_R_g_cam_ = R_R_cam_g_[global_time_];
+    current_t_R_g_cam_ = t_R_cam_g_[global_time_];
+
+    last_estimated_translation_ = current_t_R_g_cam_;
+    last_estimated_rotation_ = current_R_R_g_cam_;
+  } else {
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    // Iterative Closest Point
+    // Get the last-known pose
+    last_known_global_rotation = rmats_[global_time_ - 1];            // [Ri|ti] - pos of camera, i.e.
+    last_known_global_translation = tvecs_[global_time_ - 1];          // transform from camera to global coo space for (i-1)th camera pose
+    // Declare variables to host ICP results
+    // Call ICP
+    if(!performICP(intr, last_known_global_rotation, last_known_global_translation, current_R_R_g_cam_, current_t_R_g_cam_))
     {
+      // ICP based on synthetic maps failed -> try to estimate the current camera pose based on previous and current raw maps
+      Matrix3frm delta_rotation;
+      Vector3f delta_translation;
+      if(!performPairWiseICP(intr, delta_rotation, delta_translation))
+      {
+        // save current vertex and normal maps
+        saveCurrentMaps ();
+        return (false);
+      }
+
+      // Pose estimation succeeded -> update estimated pose
+      last_estimated_translation_ = delta_rotation * last_estimated_translation_ + delta_translation;
+      last_estimated_rotation_ = delta_rotation * last_estimated_rotation_;
       // save current vertex and normal maps
       saveCurrentMaps ();
-      return (false);
+      return (true);
+    }
+    else
+    {
+      // ICP based on synthetic maps succeeded
+      // Save newly-computed pose
+      rmats_.push_back (current_R_R_g_cam_);
+      tvecs_.push_back (current_t_R_g_cam_);
+      // Update last estimated pose to current pairwise ICP result
+      last_estimated_translation_ = current_t_R_g_cam_;
+      last_estimated_rotation_ = current_R_R_g_cam_;
     }
 
-    // Pose estimation succeeded -> update estimated pose
-    last_estimated_translation_ = delta_rotation * last_estimated_translation_ + delta_translation;
-    last_estimated_rotation_ = delta_rotation * last_estimated_rotation_;
-    // save current vertex and normal maps
-    saveCurrentMaps ();
-    return (true);
+    // Left camera rotation and translation
+    current_R_L_g_cam_ = current_R_R_g_cam_ * relative_R_R_L_;
+    current_t_L_g_cam_ = current_R_R_g_cam_ * relative_t_R_L_ + current_t_R_g_cam_;
+
+    float3 o = getCyclicalBufferStructure()->origin_metric;
+    Vector3f origin(o.x, o.y, o.z);
+    current_t_R_g_cam_ -= origin;
+    current_t_L_g_cam_ -= origin;
+
+    current_R_L_cam_g_ = current_R_L_g_cam_.inverse();
+    current_R_R_cam_g_ = current_R_R_g_cam_.inverse();
+    current_t_L_cam_g_ = -current_R_L_cam_g_ * current_t_L_g_cam_;
+    current_t_R_cam_g_ = -current_R_R_cam_g_ * current_t_R_g_cam_;
+
+    R_L_cam_g_.push_back(current_R_L_cam_g_);
+    R_R_cam_g_.push_back(current_R_R_cam_g_);
+    R_L_g_cam_.push_back(current_R_L_g_cam_);
+    R_R_g_cam_.push_back(current_R_R_g_cam_);
+    t_L_cam_g_.push_back(current_t_L_cam_g_);
+    t_R_cam_g_.push_back(current_t_R_cam_g_);
+    t_L_g_cam_.push_back(current_t_L_g_cam_);
+    t_R_g_cam_.push_back(current_t_R_g_cam_);
   }
-  else
-  {
-    // ICP based on synthetic maps succeeded
-    // Save newly-computed pose
-    rmats_.push_back (current_global_R_rotation_);
-    tvecs_.push_back (current_global_R_translation_);
-    // Update last estimated pose to current pairwise ICP result
-    last_estimated_translation_ = current_global_R_translation_;
-    last_estimated_rotation_ = current_global_R_rotation_;
-  }
-
-  // Left camera rotation and translation
-  current_global_L_rotation_ = current_global_R_rotation_ * relative_L_camera_rotation_;
-  current_global_L_translation_ = current_global_R_rotation_ * relative_L_camera_translation_ + current_global_R_translation_;
-
-  float3 o = getCyclicalBufferStructure()->origin_metric;
-  Vector3f origin(o.x, o.y, o.z);
-  current_global_R_translation_ -= origin;
-  current_global_L_translation_ -= origin;
-
-  current_camera_L_rotation_ = current_global_L_rotation_.inverse ();
-  current_camera_R_rotation_ = current_global_R_rotation_.inverse ();
-
-  current_camera_L_translation_ = -current_camera_L_rotation_ * current_global_L_translation_;
-  current_camera_R_translation_ = -current_camera_R_rotation_ * current_global_R_translation_;
-
-  R_L_cam_g_.push_back(current_camera_L_rotation_);
-  R_R_cam_g_.push_back(current_camera_R_rotation_);
-  R_L_g_cam_.push_back(current_global_L_rotation_);
-  R_R_g_cam_.push_back(current_global_R_rotation_);
-  t_L_cam_g_.push_back(current_camera_L_translation_);
-  t_R_cam_g_.push_back(current_camera_R_translation_);
-  t_L_g_cam_.push_back(current_global_L_translation_);
-  t_R_g_cam_.push_back(current_global_R_translation_);
 
   ///////////////////////////////////////////////////////////////////////////////////////////
   // check if we need to shift
@@ -860,36 +913,36 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
 
   ///////////////////////////////////////////////////////////////////////////////////////////
   // get the NEW local pose as device types
-  Mat33  device_current_rotation_inv, device_current_rotation;
-  float3 device_current_translation_local;
-  convertTransforms(current_camera_R_rotation_,
-                    current_global_R_rotation_,
-                    current_global_R_translation_,
-                    device_current_rotation_inv,
-                    device_current_rotation,
-                    device_current_translation_local);
-  //device_current_translation_local -= getCyclicalBufferStructure()->origin_metric;   // translation (local translation = global translation - origin of cube)
+  Mat33  R_device_R_cam_g, R_device_R_g_cam;
+  float3 t_device_R_g_cam;
+  convertTransforms(current_R_R_cam_g_,
+                    current_R_R_g_cam_,
+                    current_t_R_g_cam_,
+                    R_device_R_cam_g,
+                    R_device_R_g_cam,
+                    t_device_R_g_cam);
+  //t_device_R_g_cam -= getCyclicalBufferStructure()->origin_metric;   // translation (local translation = global translation - origin of cube)
 
-  Mat33  device_current_L_rotation;
-  float3 device_current_L_translation_local;
-  convertTransforms(current_global_L_rotation_,
-                    current_global_L_translation_,
-                    device_current_L_rotation,
-                    device_current_L_translation_local);
-  //device_current_L_translation_local -= getCyclicalBufferStructure()->origin_metric;   // translation (local translation = global translation - origin of cube)
+  Mat33  R_device_L_g_cam;
+  float3 t_device_L_g_cam;
+  convertTransforms(current_R_L_g_cam_,
+                    current_t_L_g_cam_,
+                    R_device_L_g_cam,
+                    t_device_L_g_cam);
+  //t_device_L_g_cam -= getCyclicalBufferStructure()->origin_metric;   // translation (local translation = global translation - origin of cube)
 
   ///////////////////////////////////////////////////////////////////////////////////////////
   // Integration check - We do not integrate volume if camera does not move far enought.
   {
-    float rnorm = rodrigues2(current_global_R_rotation_.inverse() * last_known_global_rotation).norm();
-    float tnorm = (current_global_R_translation_ - last_known_global_translation).norm();
+    float rnorm = rodrigues2(current_R_R_g_cam_.inverse() * last_known_global_rotation).norm();
+    float tnorm = (current_t_R_g_cam_ - last_known_global_translation).norm();
     const float alpha = 1.f;
     bool integrate = (rnorm + alpha * tnorm)/2 >= integration_metric_threshold_;
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Volume integration
     if (integrate)
     {
-      integrateTsdfVolume (depth_raw, intr, device_volume_size, device_current_rotation_inv, device_current_translation_local, tsdf_volume_->getTsdfTruncDist (), tsdf_volume_->data (), getCyclicalBufferStructure (), depthRawScaled_);
+      integrateTsdfVolume (depth_raw, intr, device_volume_size, R_device_R_cam_g, t_device_R_g_cam, tsdf_volume_->getTsdfTruncDist (), tsdf_volume_->data (), getCyclicalBufferStructure (), depthRawScaled_);
     }
   }
 
@@ -897,26 +950,26 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
   // Ray casting
   {
     // generate synthetic vertex and normal maps from newly-found pose.
-    raycast (intr, device_current_rotation, device_current_translation_local, tsdf_volume_->getTsdfTruncDist (), device_volume_size, tsdf_volume_->data (), getCyclicalBufferStructure (), vmaps_g_prev_[0], nmaps_g_prev_[0]);
+    raycast (intr, R_device_R_g_cam, t_device_R_g_cam, tsdf_volume_->getTsdfTruncDist (), device_volume_size, tsdf_volume_->data (), getCyclicalBufferStructure (), vmaps_g_prev_R_[0], nmaps_g_prev_R_[0]);
 
     // Ray casting for the left camera
-    raycast (intr, device_current_L_rotation, device_current_L_translation_local, tsdf_volume_->getTsdfTruncDist (), device_volume_size, tsdf_volume_->data (), getCyclicalBufferStructure (), vmaps_g_prev_L_[0], nmaps_g_prev_L_[0]);
+    raycast (intr, R_device_L_g_cam, t_device_L_g_cam, tsdf_volume_->getTsdfTruncDist (), device_volume_size, tsdf_volume_->data (), getCyclicalBufferStructure (), vmaps_g_prev_L_[0], nmaps_g_prev_L_[0]);
 
     // POST-PROCESSING: We need to transform the newly raycasted maps into the global space.
     Mat33&  rotation_id = device_cast<Mat33> (rmats_[0]); /// Identity Rotation Matrix. Because we never rotate our volume
     float3 cube_origin = (getCyclicalBufferStructure ())->origin_metric;
-    MapArr& vmap_temp = vmaps_g_prev_[0];
-    MapArr& nmap_temp = nmaps_g_prev_[0];
+    MapArr& vmap_temp_R = vmaps_g_prev_R_[0];
+    MapArr& nmap_temp_R = nmaps_g_prev_R_[0];
     MapArr& vmap_temp_L = vmaps_g_prev_L_[0];
     MapArr& nmap_temp_L = nmaps_g_prev_L_[0];
-    transformMaps (vmap_temp, nmap_temp, rotation_id, cube_origin, vmaps_g_prev_[0], nmaps_g_prev_[0]);
+    transformMaps (vmap_temp_R, nmap_temp_R, rotation_id, cube_origin, vmaps_g_prev_R_[0], nmaps_g_prev_R_[0]);
     transformMaps (vmap_temp_L, nmap_temp_L, rotation_id, cube_origin, vmaps_g_prev_L_[0], nmaps_g_prev_L_[0]);
 
     // create pyramid levels for vertex and normal maps
     for (int i = 1; i < LEVELS; ++i)
     {
-      resizeVMap (vmaps_g_prev_[i-1], vmaps_g_prev_[i]);
-      resizeNMap (nmaps_g_prev_[i-1], nmaps_g_prev_[i]);
+      resizeVMap (vmaps_g_prev_R_[i-1], vmaps_g_prev_R_[i]);
+      resizeNMap (nmaps_g_prev_R_[i-1], nmaps_g_prev_R_[i]);
       resizeVMap (vmaps_g_prev_L_[i-1], vmaps_g_prev_L_[i]);
       resizeNMap (nmaps_g_prev_L_[i-1], nmaps_g_prev_L_[i]);
     }
@@ -1005,7 +1058,7 @@ pcl::gpu::kinfuLS::KinfuTracker::getImage (View& view) const
   light.pos[0] = device_cast<const float3>(light_source_pose);
 
   view.create (rows_, cols_);
-  generateImage (vmaps_g_prev_[0], nmaps_g_prev_[0], light, view);
+  generateImage (vmaps_g_prev_R_[0], nmaps_g_prev_R_[0], light, view);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1043,7 +1096,7 @@ pcl::gpu::kinfuLS::KinfuTracker::getAnaglyphImage (View& view) const
 
   view.create (rows_, cols_);
   generateAnaglyphImage (vmaps_g_prev_L_[0], nmaps_g_prev_L_[0],
-                         vmaps_g_prev_[0],   nmaps_g_prev_[0],
+                         vmaps_g_prev_R_[0], nmaps_g_prev_R_[0],
                          light, view);
 }
 
@@ -1053,7 +1106,7 @@ pcl::gpu::kinfuLS::KinfuTracker::getLastFrameCloud (DeviceArray2D<PointType>& cl
 {
   cloud.create (rows_, cols_);
   DeviceArray2D<float4>& c = (DeviceArray2D<float4>&)cloud;
-  convert (vmaps_g_prev_[0], c);
+  convert (vmaps_g_prev_R_[0], c);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1062,7 +1115,7 @@ pcl::gpu::kinfuLS::KinfuTracker::getLastFrameNormals (DeviceArray2D<NormalType>&
 {
   normals.create (rows_, cols_);
   DeviceArray2D<float8>& n = (DeviceArray2D<float8>&)normals;
-  convert (nmaps_g_prev_[0], n);
+  convert (nmaps_g_prev_R_[0], n);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1090,7 +1143,7 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth, const View& 
     Mat33&  device_Rcurr_inv = device_cast<Mat33> (R_inv);
     float3& device_tcurr = device_cast<float3> (t);
 
-    updateColorVolume(intr, tsdf_volume_->getTsdfTruncDist(), device_Rcurr_inv, device_tcurr, vmaps_g_prev_[0],
+    updateColorVolume(intr, tsdf_volume_->getTsdfTruncDist(), device_Rcurr_inv, device_tcurr, vmaps_g_prev_R_[0],
         colors, device_volume_size, color_volume_->data(), color_volume_->getMaxWeight());
   }
 

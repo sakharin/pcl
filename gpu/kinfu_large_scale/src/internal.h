@@ -266,8 +266,8 @@ namespace pcl
       // Raycast and view generation
       /** \brief Generation vertex and normal maps from volume for current camera pose
         * \param[in] intr camera intrinsices
-        * \param[in] Rcurr current rotation
-        * \param[in] tcurr current translation
+        * \param[in] R_g_cam current rotation
+        * \param[in] t_g_cam current translation
         * \param[in] tranc_dist volume truncation distance
         * \param[in] volume_size volume size in mm
         * \param[in] volume tsdf volume
@@ -276,7 +276,7 @@ namespace pcl
         * \param[out] nmap output normals map
         */
       void
-      raycast (const Intr& intr, const Mat33& Rcurr, const float3& tcurr, float tranc_dist, const float3& volume_size,
+      raycast (const Intr& intr, const Mat33& R_g_cam, const float3& t_g_cam, float tranc_dist, const float3& volume_size,
               const PtrStep<short2>& volume, const pcl::gpu::kinfuLS::tsdf_buffer* buffer, MapArr& vmap, MapArr& nmap);
 
       /** \brief Renders 3D image of the scene
