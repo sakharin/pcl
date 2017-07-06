@@ -158,11 +158,11 @@ pcl::gpu::kinfuLS::KinfuTracker::setCameraMovementThreshold(float threshold)
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void
 pcl::gpu::kinfuLS::KinfuTracker::setRelativeLeftCameraPosition(float x, float y, float z) {
-  relative_R_L_R_ = Eigen::Matrix3f::Identity();
-  relative_t_L_R_ = Vector3f(x, y, z);
+  relative_R_R_L_ = Eigen::Matrix3f::Identity();
+  relative_t_R_L_ = Vector3f(x, y, z);
 
-  relative_R_R_L_ = relative_R_L_R_.inverse();
-  relative_t_R_L_ = -relative_R_R_L_ * relative_t_L_R_;
+  relative_R_L_R_ = relative_R_R_L_.inverse();
+  relative_t_L_R_ = -relative_R_L_R_ * relative_t_R_L_;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
