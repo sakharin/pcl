@@ -1078,6 +1078,94 @@ namespace pcl
           return uv;
         }
 
+        __device__ __forceinline__ void
+        linearInterColori (uchar3 c1, uchar3 c2, int p1, int p2, float p,
+            float3 &c) const {
+          float s1, s2;
+          s1 = (p2 - p) / (p2 - p1);
+          s2 = (p - p1) / (p2 - p1);
+          c.x = s1 * c1.x + s2 * c2.x;
+          c.y = s1 * c1.y + s2 * c2.y;
+          c.z = s1 * c1.z + s2 * c2.z;
+        }
+
+        __device__ __forceinline__ void
+        linearInterColorf (uchar3 c1, uchar3 c2, int p1, int p2, float p,
+            float3 &c) const {
+          float s1, s2;
+          s1 = (p2 - p) / (p2 - p1);
+          s2 = (p - p1) / (p2 - p1);
+          c.x = s1 * c1.x + s2 * c2.x;
+          c.y = s1 * c1.y + s2 * c2.y;
+          c.z = s1 * c1.z + s2 * c2.z;
+        }
+
+        __device__ __forceinline__ void
+        linearInterColorf (float3 c1, float3 c2, int p1, int p2, float p,
+            float3 &c) const {
+          float s1, s2;
+          s1 = (p2 - p) / (p2 - p1);
+          s2 = (p - p1) / (p2 - p1);
+          c.x = s1 * c1.x + s2 * c2.x;
+          c.y = s1 * c1.y + s2 * c2.y;
+          c.z = s1 * c1.z + s2 * c2.z;
+        }
+
+        __device__ __forceinline__ void
+        projectPixel (float3 uv, PtrStep<uchar3> colors, int rows, int cols,
+            uchar3& pixel) const {
+          int x1 = floor(uv.x);
+          int x2 = ceil(uv.x);
+          int y1 = floor(uv.y);
+          int y2 = ceil(uv.y);
+          pixel = make_uchar3(0, 0, 0);
+          float3 p1234;
+          if (x1 >= 0 && y1 >=0 && x2 < cols && y2 < rows) {
+            uchar3 p1 = colors.ptr(y1)[x1];
+            uchar3 p2 = colors.ptr(y1)[x2];
+            uchar3 p3 = colors.ptr(y2)[x1];
+            uchar3 p4 = colors.ptr(y2)[x2];
+            float3 p12, p34;
+            linearInterColori(p1, p2, x1, x2, uv.x, p12);
+            linearInterColori(p3, p4, x1, x2, uv.x, p34);
+            linearInterColorf(p12, p34, y1, y2, uv.y, p1234);
+          } else if (x1 < 0 && x2 >= 0 && y1 >= 0 && x2 < cols && y2 < rows) {
+            uchar3 p2 = colors.ptr(y1)[x2];
+            uchar3 p4 = colors.ptr(y2)[x2];
+            linearInterColorf(p2, p4, y1, y2, uv.y, p1234);
+          } else if (x1 >= 0 && y1 >= 0 && x1 < cols && x2 >= cols && y2 < rows) {
+            uchar3 p1 = colors.ptr(y1)[x1];
+            uchar3 p3 = colors.ptr(y2)[x1];
+            linearInterColorf(p1, p3, y1, y2, uv.y, p1234);
+          } else if (x1 >= 0 && y1 < 0 && y2 >= 0 && x2 < cols && y2 < rows) {
+            uchar3 p3 = colors.ptr(y2)[x1];
+            uchar3 p4 = colors.ptr(y2)[x2];
+            linearInterColorf(p3, p4, x1, x2, uv.x, p1234);
+          } else if (x1 >= 0 && y1 >= 0 && x2 < cols && y1 < rows && y2 >= rows) {
+            uchar3 p1 = colors.ptr(y1)[x1];
+            uchar3 p2 = colors.ptr(y1)[x2];
+            linearInterColorf(p1, p2, x1, x2, uv.x, p1234);
+          }
+          pixel.x = min(255, max(0, __float2int_rn(p1234.x)));
+          pixel.y = min(255, max(0, __float2int_rn(p1234.y)));
+          pixel.z = min(255, max(0, __float2int_rn(p1234.z)));
+        }
+
+        __device__ __forceinline__ void
+        weightSumPixel(uchar3 pixel_1, uchar3 pixel_2, float weight,
+            uchar3& pixel) const {
+          pixel = make_uchar3(0, 0, 0);
+          if (pixel_1.x != 0 || pixel_1.y != 0 || pixel_1.z != 0 ||
+              pixel_2.x != 0 || pixel_2.y != 0 || pixel_2.z != 0) {
+            float cx = pixel_1.x * weight + pixel_2.x * (1.f - weight);
+            float cy = pixel_1.y * weight + pixel_2.y * (1.f - weight);
+            float cz = pixel_1.z * weight + pixel_2.z * (1.f - weight);
+            pixel.x = min(255, max(0, __float2int_rn(cx)));
+            pixel.y = min(255, max(0, __float2int_rn(cy)));
+            pixel.z = min(255, max(0, __float2int_rn(cz)));
+          }
+        }
+
         __device__ __forceinline__ float
         dotfloat3s(float3 f1, float3 f2) const {
           return f1.x * f2.x + f1.y * f2.y + f1.z * f2.z;
@@ -1108,7 +1196,6 @@ namespace pcl
             float3 target_cam_ray = tt_g_cam - ray_end;
             int index_min_cos_angle = 0;
             float max_cos_angle = -1;
-
             for (int i = 0; i < num_images; i++) {
               // Get the nearest ray
               float3 cam_ray = ts_g_cam[i] - ray_end;
@@ -1130,7 +1217,17 @@ namespace pcl
               if (is_max && is_data_exist) {
                 max_cos_angle = cos_angle;
                 index_min_cos_angle = i;
-                result_pixel = images[i].ptr(v)[u];
+
+                // Nearest pixel
+                //uchar3 pixel = images[i].ptr(v)[u];
+
+                // Linear interpolation
+                uchar3 pixel;
+                projectPixel(uv, images[i], dst.rows, dst.cols, pixel);
+
+                uchar3 value = dst.ptr(y)[x];
+                weightSumPixel(pixel, value, colors_weight, result_pixel);
+
                 mask_pixel = make_uchar3(255, 255, 255);
               }
             }
