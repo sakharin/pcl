@@ -97,19 +97,19 @@ namespace pcl
             * \param[in] volumeSize physical size of the volume represented by the tdsf volume. In meters.
             * \param[in] shiftingDistance when the camera target point is farther than shiftingDistance from the center of the volume, shiting occurs. In meters.
             * \note The target point is located at (0, 0, 0.6*volumeSize) in camera coordinates.
-            * \param[in] rows height of depth image
-            * \param[in] cols width of depth image
             */
-          KinfuTracker (const Eigen::Vector3f &volumeSize, const float shiftingDistance, int rows = 480, int cols = 640);
+          KinfuTracker (const Eigen::Vector3f &volumeSize, const float shiftingDistance);
 
           /** \brief Sets Depth camera intrinsics
+            * \param[in] rows number of rows of the image
+            * \param[in] cols number of cols of the image
             * \param[in] fx focal length x
             * \param[in] fy focal length y
             * \param[in] cx principal point x
             * \param[in] cy principal point y
             */
           void
-          setDepthIntrinsics (float fx, float fy, float cx = -1, float cy = -1);
+          setDepthIntrinsics (int rows = 480, int cols = 640, float fx = pcl::device::kinfuLS::FOCAL_LENGTH, float fy = pcl::device::kinfuLS::FOCAL_LENGTH, float cx = -1, float cy = -1);
 
           /** \brief Sets initial camera pose relative to volume coordiante space
             * \param[in] pose Initial camera pose
@@ -459,6 +459,9 @@ namespace pcl
 
           /** \brief Width of input depth image. */
           int cols_;
+
+          /** \brief Focal length of input depth image. */
+          int focal_length_;
 
           /** \brief Frame counter */
           int global_time_;

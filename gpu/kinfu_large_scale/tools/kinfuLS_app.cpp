@@ -47,6 +47,7 @@ Work in progress: patch by Marco (AUG,19th 2012)
 
 #define _CRT_SECURE_NO_DEPRECATE
 
+#include <cstdlib>
 #include <iostream>
 
 #include <pcl/console/parse.h>
@@ -69,6 +70,7 @@ Work in progress: patch by Marco (AUG,19th 2012)
 #include <pcl/io/openni_grabber.h>
 #include <pcl/io/oni_grabber.h>
 #include <pcl/io/pcd_grabber.h>
+#include <pcl/io/image_grabber.h>
 
 #include "openni_capture.h"
 #include "color_handler.h"
@@ -335,19 +337,28 @@ struct CurrentFrameCloudView
 
 struct ImageView
 {
-  ImageView() : paint_image_ (true), accumulate_views_ (false)
+  ImageView() : paint_image_ (true), accumulate_views_ (false), height_ (480), width_ (640), focal_length_ (pcl::device::kinfuLS::FOCAL_LENGTH)
   {
+  }
+
+  void setParams(int height, int width, float focal_length, float cx, float cy)
+  {
+    height_ = height;
+    width_ = width;
+    focal_length_ = focal_length;
+    cx_ = cx;
+    cy_ = cy;
     viewerScene_L_.setWindowTitle ("View3D from ray tracing for left eye");
     viewerScene_L_.setPosition (0, 0);
 
     viewerScene_R_.setWindowTitle ("View3D from ray tracing for right eye");
-    viewerScene_R_.setPosition (640, 0);
+    viewerScene_R_.setPosition (width_, 0);
 
     viewerScene_A_.setWindowTitle ("View3D from ray tracing (anaglyph)");
-    viewerScene_A_.setPosition (0, 500);
+    viewerScene_A_.setPosition (0, height_);
 
     viewerDepth_.setWindowTitle ("Kinect Depth stream");
-    viewerDepth_.setPosition (640, 500);
+    viewerDepth_.setPosition (width_, height_);
     //viewerColor_.setWindowTitle ("Kinect RGB stream");
 
     frame_counter_ = 0;
@@ -373,7 +384,7 @@ struct ImageView
     // Hard code
     // Note: intrinsic of other parts are from Kinect
     // TODO Get intrinsic from ONI
-    float fx = 575, fy = 575, cx = 319.5, cy = 239.5;
+    float fx = focal_length_, fy = focal_length_;
 
     if (pose_ptr)
     {
@@ -505,14 +516,14 @@ struct ImageView
                         R_L_device_g_cam_first, t_L_device_g_cam_first,
                         Rs_R_device_cam_g_, ts_R_device_cam_g_,
                         Rs_R_device_g_cam_, ts_R_device_g_cam_,
-                        fx, fy, cx, cy,
+                        fx, fy, cx_, cy_,
                         vmapsL_first,
                         view_device_L, mask_device_L, 1);
         paint3DViewProj(images_,
                         R_R_device_g_cam_first, t_R_device_g_cam_first,
                         Rs_R_device_cam_g_, ts_R_device_cam_g_,
                         Rs_R_device_g_cam_, ts_R_device_g_cam_,
-                        fx, fy, cx, cy,
+                        fx, fy, cx_, cy_,
                         vmapsR_first,
                         view_device_R, mask_device_R, 1);
         vector<pcl::gpu::kinfuLS::PixelRGB> view_host_L;
@@ -568,12 +579,12 @@ struct ImageView
 
           paint3DViewProj(image,
                           R_R_device_cam_g, t_R_device_cam_g,
-                          fx, fy, cx, cy,
+                          fx, fy, cx_, cy_,
                           vmapsL_first,
                           view_device_L, mask_device_L, 1);
           paint3DViewProj(image,
                           R_R_device_cam_g, t_R_device_cam_g,
-                          fx, fy, cx, cy,
+                          fx, fy, cx_, cy_,
                           vmapsR_first,
                           view_device_R, mask_device_R, 1);
 
@@ -612,20 +623,20 @@ struct ImageView
       //paint3DView (colors_device_, view_device_R_, 1);
       paint3DViewProj(colors_device_,
                       R_R_device_cam_g, t_R_device_cam_g,
-                      fx, fy, cx, cy,
+                      fx, fy, cx_, cy_,
                       vmapsL,
                       view_device_L_);
       paint3DViewProj(colors_device_,
                       R_R_device_cam_g, t_R_device_cam_g,
-                      fx, fy, cx, cy,
+                      fx, fy, cx_, cy_,
                       vmapsR,
                       view_device_R_);
       paint3DViewProj(colors_device_,
                       R_R_device_cam_g, t_R_device_cam_g,
-                      fx, fy, cx, cy,
+                      fx, fy, cx_, cy_,
                       vmapsL,
                       vmapsR,
-                      view_device_A_, 1);
+                      view_device_A_);
     }
 
     int cols;
@@ -647,7 +658,7 @@ struct ImageView
     if (accumulate_views_)
     {
       views_.push_back (cv::Mat ());
-      cv::cvtColor (cv::Mat (480, 640, CV_8UC3, (void*)&view_host_A_[0]), views_.back (), CV_RGB2GRAY);
+      cv::cvtColor (cv::Mat (height_, width_, CV_8UC3, (void*)&view_host_A_[0]), views_.back (), CV_RGB2GRAY);
       //cv::copy(cv::Mat(480, 640, CV_8UC3, (void*)&view_host_[0]), views_.back());
     }
 #endif
@@ -682,6 +693,11 @@ struct ImageView
 
   bool paint_image_;
   bool accumulate_views_;
+  int height_;
+  int width_;
+  float cx_;
+  float cy_;
+  float focal_length_;
 
   visualization::ImageViewer viewerScene_L_; //view the raycasted model for left eye
   visualization::ImageViewer viewerScene_R_; //view the raycasted model for right eye
@@ -1042,10 +1058,10 @@ struct KinFuLSApp
   enum { PCD_BIN = 1, PCD_ASCII = 2, PLY = 3, MESH_PLY = 7, MESH_VTK = 8 };
 
   KinFuLSApp(pcl::Grabber& source, float vsz, float shiftDistance, int snapshotRate) : exit_ (false), scan_ (false), scan_mesh_(false), scan_volume_ (false), pause_(false), triggered_capture_(true), independent_camera_ (false),
-          registration_ (false), integrate_colors_ (false), pcd_source_ (false), use_external_poses_ (false), focal_length_(-1.f), capture_ (source), was_lost_(false), time_ms_ (0)
+          registration_ (false), integrate_colors_ (false), use_images_ (false), pcd_source_ (false), use_external_poses_ (false), height_ (0), width_ (0), focal_length_(-1.f), capture_ (source), was_lost_(false), time_ms_ (0)
   {
     //Init Kinfu Tracker
-    Eigen::Vector3f volume_size = Vector3f::Constant (vsz/*meters*/);
+    volume_size_ = Vector3f::Constant (vsz/*meters*/);
 
     PCL_WARN ("--- CURRENT SETTINGS ---\n");
     PCL_INFO ("Volume size is set to %.2f meters\n", vsz);
@@ -1057,14 +1073,15 @@ struct KinFuLSApp
     if(shiftDistance > 2.5 * vsz)
       PCL_WARN ("WARNING Shifting distance (%.2f) is very large compared to the volume size (%.2f).\nYou can modify it using --shifting_distance.\n", shiftDistance, vsz);
 
-    kinfu_ = new pcl::gpu::kinfuLS::KinfuTracker(volume_size, shiftDistance);
+    kinfu_ = new pcl::gpu::kinfuLS::KinfuTracker(volume_size_, shiftDistance);
 
+    // TODO:Move camera according to init camera pose
     Eigen::Matrix3f R = Eigen::Matrix3f::Identity ();   // * AngleAxisf( pcl::deg2rad(-30.f), Vector3f::UnitX());
-    Eigen::Vector3f t = volume_size * 0.5f - Vector3f (0, 0, volume_size (2) / 2 * 1.2f);
+    Eigen::Vector3f t = volume_size_ * 0.5f - Vector3f (0, 0, volume_size_ (2) / 2 * 1.2f);
 
     Eigen::Affine3f pose = Eigen::Translation3f (t) * Eigen::AngleAxisf (R);
 
-    kinfu_->setInitialCameraPose (pose);
+    kinfu_->setInitialCameraPose(pose);
     kinfu_->volume().setTsdfTruncDist (0.030f/*meters*/);
     kinfu_->setIcpCorespFilteringParams (0.1f/*meters*/, sin ( pcl::deg2rad(20.f) ));
     //kinfu_->setDepthTruncationForICP(3.f/*meters*/);
@@ -1081,7 +1098,7 @@ struct KinFuLSApp
     image_view_.viewerScene_A_.registerKeyboardCallback (keyboard_callback, (void*)this);
     image_view_.viewerDepth_.registerKeyboardCallback (keyboard_callback, (void*)this);
 
-    scene_cloud_view_.toggleCube(volume_size);
+    scene_cloud_view_.toggleCube(volume_size_);
     frame_counter_ = 0;
     enable_texture_extraction_ = false;
 
@@ -1089,15 +1106,17 @@ struct KinFuLSApp
     //~ boost::shared_ptr<openni_wrapper::OpenNIDevice> d = ((pcl::OpenNIGrabber)source).getDevice ();
     //~ kinfu_->getDepthIntrinsics (fx, fy, cx, cy);
 
-    float height = 480.0f;
-    float width = 640.0f;
-    screenshot_manager_.setCameraIntrinsics (pcl::device::kinfuLS::FOCAL_LENGTH, height, width);
+    height_ = 480;
+    width_ = 640;
+    cx_ = width_ / 2 - 0.5f;
+    cy_ = height_ / 2 - 0.5f;
+    focal_length_ = pcl::device::kinfuLS::FOCAL_LENGTH;
+    screenshot_manager_.setCameraIntrinsics (focal_length_, height_, width_);
     snapshot_rate_ = snapshotRate;
 
     Eigen::Matrix3f Rid = Eigen::Matrix3f::Identity ();   // * AngleAxisf( pcl::deg2rad(-30.f), Vector3f::UnitX());
-    Eigen::Vector3f T = Vector3f (0, 0, -volume_size(0)*1.5f);
+    Eigen::Vector3f T = Vector3f (0, 0, -volume_size_(0)*1.5f);
     delta_lost_pose_ = Eigen::Translation3f (T) * Eigen::AngleAxisf (Rid);
-
   }
 
   ~KinFuLSApp()
@@ -1117,7 +1136,8 @@ struct KinFuLSApp
   void
   initRegistration ()
   {
-    registration_ = capture_.providesCallback<pcl::ONIGrabber::sig_cb_openni_image_depth_image> ();
+    registration_ = capture_.providesCallback<pcl::ONIGrabber::sig_cb_openni_image_depth_image>() ||
+                    capture_.providesCallback<pcl::ONIGrabber::sig_cb_openni_point_cloud_rgba>();
     cout << "Registration mode: " << (registration_ ? "On" : "Off (not supported by source)") << endl;
   }
 
@@ -1147,7 +1167,7 @@ struct KinFuLSApp
     if (!match_file.empty())
       evaluation_ptr_->setMatchFile(match_file);
 
-    kinfu_->setDepthIntrinsics (evaluation_ptr_->fx, evaluation_ptr_->fy, evaluation_ptr_->cx, evaluation_ptr_->cy);
+    kinfu_->setDepthIntrinsics (evaluation_ptr_->fx, evaluation_ptr_->fy, height_, width_, evaluation_ptr_->cx, evaluation_ptr_->cy);
     image_view_.raycaster_ptr_ = RayCaster::Ptr( new RayCaster(kinfu_->rows (), kinfu_->cols (), evaluation_ptr_->fx, evaluation_ptr_->fy, evaluation_ptr_->cx, evaluation_ptr_->cy) );
   }
 
@@ -1160,9 +1180,8 @@ struct KinFuLSApp
       cout << "Play" << endl;
   }
 
-  void toggleExternalPoses(string poses_dir) {
-    cout << "poses_dir:" << poses_dir << endl;
-    cv::FileStorage fs(poses_dir, cv::FileStorage::READ);
+  void toggleExternalPoses(string poses_path) {
+    cv::FileStorage fs(poses_path, cv::FileStorage::READ);
     use_external_poses_ = fs.isOpened();
     if (use_external_poses_) {
       cv::Mat p;
@@ -1184,6 +1203,8 @@ struct KinFuLSApp
       }
 
       kinfu_->setGlobalCameraPoses(Rs, ts);
+      cout << "Use external poses." << endl;
+      cout << "pose_path : " << poses_path << endl;
     } else {
       cout << "Cannot read external poses." << endl;
     }
@@ -1285,6 +1306,13 @@ struct KinFuLSApp
       if (exit_ || !lock)
         return;
 
+      int width  = depth_wrapper->getWidth();
+      int height = depth_wrapper->getHeight();
+      height_ = height;
+      width_ = width;
+      cx_ = width / 2 - 0.5f;
+      cy_ = height / 2 - 0.5f;
+
       depth_.cols = depth_wrapper->getWidth();
       depth_.rows = depth_wrapper->getHeight();
       depth_.step = depth_.cols * depth_.elemSize();
@@ -1305,6 +1333,13 @@ struct KinFuLSApp
       {
         return;
       }
+
+      int width  = depth_wrapper->getWidth();
+      int height = depth_wrapper->getHeight();
+      height_ = height;
+      width_ = width;
+      cx_ = width / 2 - 0.5f;
+      cy_ = height / 2 - 0.5f;
 
       depth_.cols = depth_wrapper->getWidth();
       depth_.rows = depth_wrapper->getHeight();
@@ -1337,6 +1372,11 @@ struct KinFuLSApp
       //std::cout << "Giving colors2\n";
       int width  = DC3->width;
       int height = DC3->height;
+      height_ = height;
+      width_ = width;
+      cx_ = width / 2 - 0.5f;
+      cy_ = height / 2 - 0.5f;
+
       depth_.cols = width;
       depth_.rows = height;
       depth_.step = depth_.cols * depth_.elemSize();
@@ -1365,6 +1405,57 @@ struct KinFuLSApp
     data_ready_cond_.notify_one();
   }
 
+  void source_cb4(const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr & cloud)
+  {
+    {
+      //std::cout << "Giving colors1\n";
+      boost::mutex::scoped_try_lock lock(data_ready_mutex_);
+      //std::cout << "lock " << lock << std::endl;
+      if (exit_ || !lock)
+        return;
+      //std::cout << "Giving colors2\n";
+      int width  = (*cloud).width;
+      int height = (*cloud).height;
+      int size = (*cloud).size();
+      height_ = height;
+      width_ = width;
+      cx_ = width / 2 - 0.5f;
+      cy_ = height / 2 - 0.5f;
+
+      depth_.cols = width;
+      depth_.rows = height;
+      depth_.step = depth_.cols * depth_.elemSize();
+      source_depth_data_.resize(depth_.cols * depth_.rows);
+
+      rgb24_.cols = width;
+      rgb24_.rows = height;
+      rgb24_.step = rgb24_.cols * rgb24_.elemSize();
+      source_image_data_.resize(rgb24_.cols * rgb24_.rows);
+
+      unsigned char *rgb    = (unsigned char *)  &source_image_data_[0];
+      unsigned short *depth = (unsigned short *) &source_depth_data_[0];
+
+      int i1 = 0;
+      int i2 = 0;
+      for (int v = 0; v < height; v++) {
+        i1 = v * width;
+        i2 = (height - v - 1) * width;
+        for (int u = 0; u < width; u++) {
+          PointXYZRGBA pt = (*cloud).at(i2);
+          rgb[3 * i1 + 0] = pt.r;
+          rgb[3 * i1 + 1] = pt.g;
+          rgb[3 * i1 + 2] = pt.b;
+          depth[i1]    = (unsigned short) (pt.z * 1000);
+          i1++;
+          i2++;
+        }
+      }
+      rgb24_.data = &source_image_data_[0];
+      depth_.data = &source_depth_data_[0];
+    }
+    data_ready_cond_.notify_one();
+  }
+
   void
   startMainLoop (bool triggered_capture)
   {
@@ -1373,9 +1464,10 @@ struct KinFuLSApp
     typedef boost::shared_ptr<DepthImage> DepthImagePtr;
     typedef boost::shared_ptr<Image>      ImagePtr;
 
-    boost::function<void (const ImagePtr&, const DepthImagePtr&, float constant)> func1 = boost::bind (&KinFuLSApp::source_cb2, this, _1, _2, _3);
-    boost::function<void (const DepthImagePtr&)> func2 = boost::bind (&KinFuLSApp::source_cb1, this, _1);
-    boost::function<void (const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr&) > func3 = boost::bind (&KinFuLSApp::source_cb3, this, _1);
+    boost::function< void (const ImagePtr&, const DepthImagePtr&, float constant) > func1 = boost::bind (&KinFuLSApp::source_cb2, this, _1, _2, _3);
+    boost::function< void (const DepthImagePtr&) > func2 = boost::bind (&KinFuLSApp::source_cb1, this, _1);
+    boost::function< void (const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr&) > func3 = boost::bind (&KinFuLSApp::source_cb3, this, _1);
+    boost::function< void (const pcl::PointCloud<pcl::PointXYZRGBA>::ConstPtr&) > func4 = boost::bind (&KinFuLSApp::source_cb4, this, _1);
 
     bool need_colors = integrate_colors_ || registration_ || enable_texture_extraction_;
 
@@ -1383,7 +1475,7 @@ struct KinFuLSApp
       std::cout << "grabber doesn't provide pcl::PointCloud<pcl::PointXYZRGBA> callback !\n";
     }
 
-    boost::signals2::connection c = pcd_source_? capture_.registerCallback (func3) : need_colors ? capture_.registerCallback (func1) : capture_.registerCallback (func2);
+    boost::signals2::connection c = use_images_ ? capture_.registerCallback (func4) : pcd_source_? capture_.registerCallback (func3) : need_colors ? capture_.registerCallback (func1) : capture_.registerCallback (func2);
 
     {
       boost::unique_lock<boost::mutex> lock(data_ready_mutex_);
@@ -1391,11 +1483,16 @@ struct KinFuLSApp
       if (triggered_capture_) {
         capture_.start();
         capture_.stop();
-        data_ready_cond_.timed_wait (lock, boost::posix_time::millisec(100));
       }
 
       if (!triggered_capture_)
         capture_.start ();
+
+      data_ready_cond_.timed_wait (lock, boost::posix_time::millisec(1000));
+      kinfu_->setDepthIntrinsics(height_, width_, focal_length_, focal_length_, cx_, cy_);
+      image_view_.setParams(height_, width_, focal_length_, cx_, cy_);
+      image_view_.raycaster_ptr_ = RayCaster::Ptr( new RayCaster(height_, width_, focal_length_, focal_length_, cx_, cy_) );
+      screenshot_manager_.setCameraIntrinsics (focal_length_, height_, width_);
 
       while (!exit_ &&
              !scene_cloud_view_.cloud_viewer_.wasStopped () &&
@@ -1407,7 +1504,7 @@ struct KinFuLSApp
         if (triggered_capture_ && !pause_)
           capture_.start(); // Triggers new frame
 
-        bool has_data = data_ready_cond_.timed_wait (lock, boost::posix_time::millisec(100));
+        bool has_data = data_ready_cond_.timed_wait (lock, boost::posix_time::millisec(1000));
 
         try { this->execute (depth_, rgb24_, has_data); }
         catch (const std::bad_alloc& /*e*/) { cout << "Bad alloc" << endl; break; }
@@ -1499,9 +1596,15 @@ struct KinFuLSApp
 
   bool registration_;
   bool integrate_colors_;
+  bool use_images_;
   bool pcd_source_;
   bool use_external_poses_;
+  int height_;
+  int width_;
   float focal_length_;
+  float cx_;
+  float cy_;
+  Eigen::Vector3f volume_size_;
 
   pcl::Grabber& capture_;
   KinfuTracker *kinfu_;
@@ -1668,7 +1771,7 @@ main (int argc, char* argv[])
   bool triggered_capture = false;
   bool pcd_input = false;
 
-  std::string eval_folder, match_file, openni_device, oni_file, pcd_dir;
+  std::string eval_folder, match_file, openni_device, oni_file, pcd_dir, image_path;
   try
   {
     if (pc::parse_argument (argc, argv, "-dev", openni_device) > 0)
@@ -1698,6 +1801,15 @@ main (int argc, char* argv[])
       //init data source latter
       pc::parse_argument (argc, argv, "-match_file", match_file);
     }
+    else if (pc::parse_argument(argc, argv, "--image_path", image_path) > 0)
+    {
+      cout << "image_path : " << image_path << endl;
+      string image_rgb_path = image_path + "/rgb";
+      string image_depth_path = image_path + "/depth";
+      float fps = 30;
+      bool is_repeat = false;
+      capture.reset( new pcl::ImageGrabber< pcl::PointXYZRGBA >(image_depth_path, image_rgb_path, fps, is_repeat) );
+    }
     else
     {
       capture.reset( new pcl::OpenNIGrabber() );
@@ -1725,10 +1837,21 @@ main (int argc, char* argv[])
 
   KinFuLSApp app (*capture, volume_size, shift_distance, snapshot_rate);
 
-  if (pc::find_switch (argc, argv, "--poses")) {
-    string poses_dir;
-    pc::parse_argument(argc, argv, "--poses", poses_dir);
-    app.toggleExternalPoses(poses_dir);
+  string pose_path;
+  if (pc::parse_argument(argc, argv, "--poses", pose_path) > 0) {
+    app.toggleExternalPoses(pose_path);
+  }
+
+  float focal_length;
+  if (pc::parse_argument(argc, argv, "--focal_length", focal_length) > 0) {
+    if (focal_length > 0) {
+      app.focal_length_ = focal_length;
+      cout << "Set focal length to " << focal_length << "." << endl;
+    }
+  }
+
+  if (pc::parse_argument(argc, argv, "--image_path", image_path) > 0) {
+    app.use_images_ = true;
   }
 
   if (pc::parse_argument (argc, argv, "-eval", eval_folder) > 0)

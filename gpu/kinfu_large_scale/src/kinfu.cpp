@@ -75,8 +75,8 @@ namespace pcl
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-pcl::gpu::kinfuLS::KinfuTracker::KinfuTracker (const Eigen::Vector3f &volume_size, const float shiftingDistance, int rows, int cols) :
-  cyclical_( DISTANCE_THRESHOLD, VOLUME_SIZE, VOLUME_X), rows_(rows), cols_(cols), global_time_(0), max_icp_distance_(0), integration_metric_threshold_(0.f), perform_last_scan_ (false), finished_(false), lost_ (false), disable_icp_ (false), use_external_poses_(false)
+pcl::gpu::kinfuLS::KinfuTracker::KinfuTracker (const Eigen::Vector3f &volume_size, const float shiftingDistance) :
+  cyclical_( DISTANCE_THRESHOLD, VOLUME_SIZE, VOLUME_X), rows_(480), cols_(680), focal_length_(FOCAL_LENGTH), global_time_(0), max_icp_distance_(0), integration_metric_threshold_(0.f), perform_last_scan_ (false), finished_(false), lost_ (false), disable_icp_ (false), use_external_poses_(false)
 {
   //const Vector3f volume_size = Vector3f::Constant (VOLUME_SIZE);
   const Vector3i volume_resolution (VOLUME_X, VOLUME_Y, VOLUME_Z);
@@ -92,8 +92,6 @@ pcl::gpu::kinfuLS::KinfuTracker::KinfuTracker (const Eigen::Vector3f &volume_siz
   cyclical_.setDistanceThreshold (shifting_distance_);
   cyclical_.setVolumeSize (volume_size_, volume_size_, volume_size_);
 
-  setDepthIntrinsics (FOCAL_LENGTH, FOCAL_LENGTH); // default values, can be overwritten
-
   init_Rcam_ = Eigen::Matrix3f::Identity ();// * AngleAxisf(-30.f/180*3.1415926, Vector3f::UnitX());
   init_tcam_ = volume_size * 0.5f - Vector3f (0, 0, volume_size (2) / 2 * 1.2f);
 
@@ -106,8 +104,6 @@ pcl::gpu::kinfuLS::KinfuTracker::KinfuTracker (const Eigen::Vector3f &volume_siz
 
   setIcpCorespFilteringParams (default_distThres, default_angleThres);
   tsdf_volume_->setTsdfTruncDist (default_tranc_dist);
-
-  allocateBufffers (rows, cols);
 
   rmats_.reserve (30000);
   tvecs_.reserve (30000);
@@ -124,12 +120,16 @@ pcl::gpu::kinfuLS::KinfuTracker::KinfuTracker (const Eigen::Vector3f &volume_siz
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void
-pcl::gpu::kinfuLS::KinfuTracker::setDepthIntrinsics (float fx, float fy, float cx, float cy)
+pcl::gpu::kinfuLS::KinfuTracker::setDepthIntrinsics (int rows, int cols, float fx, float fy, float cx, float cy)
 {
+  rows_ = rows;
+  cols_ = cols;
   fx_ = fx;
   fy_ = fy;
   cx_ = (cx == -1) ? cols_/2-0.5f : cx;
   cy_ = (cy == -1) ? rows_/2-0.5f : cy;
+
+  allocateBufffers (rows_, cols_);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -175,9 +175,14 @@ pcl::gpu::kinfuLS::KinfuTracker::getRelativeLeftCameraPose(Matrix3frm& relative_
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void
 pcl::gpu::kinfuLS::KinfuTracker::setGlobalCameraPoses(vector< Matrix3frm > Rs_cam_g, vector< Vector3f > ts_cam_g) {
+  Matrix3frm R_c1_w = init_Rcam_.inverse();
   for(int i = 0; i < Rs_cam_g.size(); i++) {
     Matrix3frm R_R_cam_g = Rs_cam_g.at(i);
     Vector3f t_R_cam_g = ts_cam_g.at(i);
+
+    // Move camera according to init camera pose
+    t_R_cam_g = R_R_cam_g * (-R_c1_w * init_tcam_) + t_R_cam_g;
+    R_R_cam_g = R_R_cam_g * R_c1_w;
 
     Matrix3frm R_R_g_cam = R_R_cam_g.inverse();
     Vector3f t_R_g_cam = -R_R_g_cam * t_R_cam_g;
@@ -835,11 +840,8 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
     current_t_L_g_cam_ = t_L_g_cam_[global_time_];
     current_t_R_g_cam_ = t_R_g_cam_[global_time_];
 
-    last_known_global_rotation = R_R_cam_g_[global_time_];
-    last_known_global_translation = t_R_cam_g_[global_time_];
-
-    current_R_R_g_cam_ = R_R_cam_g_[global_time_];
-    current_t_R_g_cam_ = t_R_cam_g_[global_time_];
+    last_known_global_rotation = R_R_g_cam_[global_time_ - 1];
+    last_known_global_translation = t_R_g_cam_[global_time_ - 1];
 
     last_estimated_translation_ = current_t_R_g_cam_;
     last_estimated_rotation_ = current_R_R_g_cam_;
