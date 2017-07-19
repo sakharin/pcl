@@ -1057,8 +1057,8 @@ struct KinFuLSApp
 {
   enum { PCD_BIN = 1, PCD_ASCII = 2, PLY = 3, MESH_PLY = 7, MESH_VTK = 8 };
 
-  KinFuLSApp(pcl::Grabber& source, float vsz, float shiftDistance, int snapshotRate) : exit_ (false), scan_ (false), scan_mesh_(false), scan_volume_ (false), pause_(false), triggered_capture_(true), independent_camera_ (false),
-          registration_ (false), integrate_colors_ (false), use_images_ (false), pcd_source_ (false), use_external_poses_ (false), height_ (0), width_ (0), focal_length_(-1.f), capture_ (source), was_lost_(false), time_ms_ (0)
+  KinFuLSApp(pcl::Grabber& source, float vsz, float shiftDistance, int snapshotRate, float focal_length, float eye_baseline) : exit_ (false), scan_ (false), scan_mesh_(false), scan_volume_ (false), pause_(false), triggered_capture_(true), independent_camera_ (false),
+          registration_ (false), integrate_colors_ (false), use_images_ (false), pcd_source_ (false), use_external_poses_ (false), height_ (0), width_ (0), focal_length_(focal_length), eye_baseline_ (eye_baseline), capture_ (source), was_lost_(false), time_ms_ (0)
   {
     //Init Kinfu Tracker
     volume_size_ = Vector3f::Constant (vsz/*meters*/);
@@ -1075,7 +1075,6 @@ struct KinFuLSApp
 
     kinfu_ = new pcl::gpu::kinfuLS::KinfuTracker(volume_size_, shiftDistance);
 
-    // TODO:Move camera according to init camera pose
     Eigen::Matrix3f R = Eigen::Matrix3f::Identity ();   // * AngleAxisf( pcl::deg2rad(-30.f), Vector3f::UnitX());
     Eigen::Vector3f t = volume_size_ * 0.5f - Vector3f (0, 0, volume_size_ (2) / 2 * 1.2f);
 
@@ -1086,7 +1085,7 @@ struct KinFuLSApp
     kinfu_->setIcpCorespFilteringParams (0.1f/*meters*/, sin ( pcl::deg2rad(20.f) ));
     //kinfu_->setDepthTruncationForICP(3.f/*meters*/);
     kinfu_->setCameraMovementThreshold(0.001f);
-    kinfu_->setRelativeLeftCameraPosition(-0.06f, 0.0f, 0.0f);
+    kinfu_->setRelativeLeftCameraPosition(-eye_baseline_, 0.0f, 0.0f);
 
     //Init KinFuLSApp
     tsdf_cloud_ptr_ = pcl::PointCloud<pcl::PointXYZI>::Ptr (new pcl::PointCloud<pcl::PointXYZI>);
@@ -1110,8 +1109,6 @@ struct KinFuLSApp
     width_ = 640;
     cx_ = width_ / 2 - 0.5f;
     cy_ = height_ / 2 - 0.5f;
-    focal_length_ = pcl::device::kinfuLS::FOCAL_LENGTH;
-    screenshot_manager_.setCameraIntrinsics (focal_length_, height_, width_);
     snapshot_rate_ = snapshotRate;
 
     Eigen::Matrix3f Rid = Eigen::Matrix3f::Identity ();   // * AngleAxisf( pcl::deg2rad(-30.f), Vector3f::UnitX());
@@ -1604,6 +1601,7 @@ struct KinFuLSApp
   float focal_length_;
   float cx_;
   float cy_;
+  float eye_baseline_;
   Eigen::Vector3f volume_size_;
 
   pcl::Grabber& capture_;
@@ -1835,19 +1833,29 @@ main (int argc, char* argv[])
   pc::parse_argument (argc, argv, "--snapshot_rate", snapshot_rate);
   pc::parse_argument (argc, argv, "-sr", snapshot_rate);
 
-  KinFuLSApp app (*capture, volume_size, shift_distance, snapshot_rate);
+  float focal_length;
+  if (pc::parse_argument(argc, argv, "--focal_length", focal_length) > 0) {
+    if (focal_length > 0) {
+      cout << "Set focal length to " << focal_length << "." << endl;
+    } else {
+      focal_length = pcl::device::kinfuLS::FOCAL_LENGTH;
+    }
+  }
+
+  float eye_baseline;
+  if (pc::parse_argument(argc, argv, "--eye_baseline", eye_baseline) > 0) {
+    if (eye_baseline > 0) {
+      cout << "Set eye's baseline to " << eye_baseline << "." << endl;
+    } else {
+      eye_baseline = 0.06f;
+    }
+  }
+
+  KinFuLSApp app (*capture, volume_size, shift_distance, snapshot_rate, focal_length, eye_baseline);
 
   string pose_path;
   if (pc::parse_argument(argc, argv, "--poses", pose_path) > 0) {
     app.toggleExternalPoses(pose_path);
-  }
-
-  float focal_length;
-  if (pc::parse_argument(argc, argv, "--focal_length", focal_length) > 0) {
-    if (focal_length > 0) {
-      app.focal_length_ = focal_length;
-      cout << "Set focal length to " << focal_length << "." << endl;
-    }
   }
 
   if (pc::parse_argument(argc, argv, "--image_path", image_path) > 0) {
