@@ -486,7 +486,9 @@ struct ImageView
         ts_L_device_g_cam_.push_back(t_L_device_g_cam);
         ts_R_device_g_cam_.push_back(t_R_device_g_cam);
       }
-      if (frame_counter_ == number_of_frame + 1) {
+      if (frame_counter_ == number_of_frame - 1) {
+        cout << "Rendering output..." << endl;
+
         // Render from all frames
         pcl::device::kinfuLS::Mat33 R_L_device_g_cam_first;
         pcl::device::kinfuLS::Mat33 R_R_device_g_cam_first;
@@ -1479,14 +1481,6 @@ struct KinFuLSApp
     {
       boost::unique_lock<boost::mutex> lock(data_ready_mutex_);
 
-      if (triggered_capture_) {
-        capture_.start();
-        capture_.stop();
-      }
-
-      if (!triggered_capture_)
-        capture_.start ();
-
       while (!exit_ &&
              !scene_cloud_view_.cloud_viewer_.wasStopped () &&
              !image_view_.viewerScene_L_.wasStopped () &&
@@ -1496,8 +1490,15 @@ struct KinFuLSApp
       {
         if (triggered_capture_ && !pause_)
           capture_.start(); // Triggers new frame
+        if (!triggered_capture_) {
+          if (pause_) {
+            capture_.stop();
+          } else {
+            capture_.start();
+          }
+        }
 
-        bool has_data = data_ready_cond_.timed_wait (lock, boost::posix_time::millisec(1000));
+        bool has_data = data_ready_cond_.timed_wait (lock, boost::posix_time::millisec(2000));
 
         try { this->execute (depth_, rgb24_, has_data); }
         catch (const std::bad_alloc& /*e*/) { cout << "Bad alloc" << endl; break; }
@@ -1802,12 +1803,12 @@ main (int argc, char* argv[])
       cout << "image_path : " << image_path << endl;
       string image_rgb_path = image_path + "/rgb";
       string image_depth_path = image_path + "/depth";
-      float fps = 30;
+      float fps = 1; // Process is slow and images are skipts
       bool is_repeat = false;
 
       pcl::ImageGrabber< pcl::PointXYZRGBA > im(image_depth_path, image_rgb_path, fps, is_repeat);
       string depth_path = image_depth_path + "/" + im.getDepthFileNameAtIndex(0) + ".png";
-      cv::Mat m = cv::imread(depth_path);
+      cv::Mat m = cv::imread(depth_path, CV_LOAD_IMAGE_UNCHANGED);
       height = m.rows;
       width = m.cols;
 

@@ -825,7 +825,6 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
     t_R_cam_g_.push_back(current_t_R_cam_g_);
     t_L_g_cam_.push_back(current_t_L_g_cam_);
     t_R_g_cam_.push_back(current_t_R_g_cam_);
-    return (false);
   }
 
   Matrix3frm last_known_global_rotation;
@@ -846,6 +845,8 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
     last_estimated_translation_ = current_t_R_g_cam_;
     last_estimated_rotation_ = current_R_R_g_cam_;
   } else {
+    if (global_time_ == 0)
+      return false;
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Iterative Closest Point
     // Get the last-known pose
