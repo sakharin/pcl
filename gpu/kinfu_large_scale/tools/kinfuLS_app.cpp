@@ -1057,8 +1057,8 @@ struct KinFuLSApp
 {
   enum { PCD_BIN = 1, PCD_ASCII = 2, PLY = 3, MESH_PLY = 7, MESH_VTK = 8 };
 
-  KinFuLSApp(pcl::Grabber& source, float vsz, float shiftDistance, int snapshotRate, float focal_length, float eye_baseline) : exit_ (false), scan_ (false), scan_mesh_(false), scan_volume_ (false), pause_(false), triggered_capture_(true), independent_camera_ (false),
-          registration_ (false), integrate_colors_ (false), use_images_ (false), pcd_source_ (false), use_external_poses_ (false), height_ (0), width_ (0), focal_length_(focal_length), eye_baseline_ (eye_baseline), capture_ (source), was_lost_(false), time_ms_ (0)
+  KinFuLSApp(pcl::Grabber& source, float vsz, float shiftDistance, int snapshotRate, int height, int width, float focal_length, float eye_baseline) : exit_ (false), scan_ (false), scan_mesh_(false), scan_volume_ (false), pause_(false), triggered_capture_(true), independent_camera_ (false),
+          registration_ (false), integrate_colors_ (false), use_images_ (false), pcd_source_ (false), use_external_poses_ (false), height_ (height), width_ (width), focal_length_(focal_length), eye_baseline_ (eye_baseline), capture_ (source), was_lost_(false), time_ms_ (0)
   {
     //Init Kinfu Tracker
     volume_size_ = Vector3f::Constant (vsz/*meters*/);
@@ -1105,8 +1105,6 @@ struct KinFuLSApp
     //~ boost::shared_ptr<openni_wrapper::OpenNIDevice> d = ((pcl::OpenNIGrabber)source).getDevice ();
     //~ kinfu_->getDepthIntrinsics (fx, fy, cx, cy);
 
-    height_ = 480;
-    width_ = 640;
     cx_ = width_ / 2 - 0.5f;
     cy_ = height_ / 2 - 0.5f;
     snapshot_rate_ = snapshotRate;
@@ -1474,6 +1472,10 @@ struct KinFuLSApp
 
     boost::signals2::connection c = use_images_ ? capture_.registerCallback (func4) : pcd_source_? capture_.registerCallback (func3) : need_colors ? capture_.registerCallback (func1) : capture_.registerCallback (func2);
 
+    kinfu_->setDepthIntrinsics(height_, width_, focal_length_, focal_length_, cx_, cy_);
+    image_view_.setParams(height_, width_, focal_length_, cx_, cy_);
+    image_view_.raycaster_ptr_ = RayCaster::Ptr( new RayCaster(height_, width_, focal_length_, focal_length_, cx_, cy_) );
+    screenshot_manager_.setCameraIntrinsics (focal_length_, height_, width_);
     {
       boost::unique_lock<boost::mutex> lock(data_ready_mutex_);
 
@@ -1484,12 +1486,6 @@ struct KinFuLSApp
 
       if (!triggered_capture_)
         capture_.start ();
-
-      data_ready_cond_.timed_wait (lock, boost::posix_time::millisec(1000));
-      kinfu_->setDepthIntrinsics(height_, width_, focal_length_, focal_length_, cx_, cy_);
-      image_view_.setParams(height_, width_, focal_length_, cx_, cy_);
-      image_view_.raycaster_ptr_ = RayCaster::Ptr( new RayCaster(height_, width_, focal_length_, focal_length_, cx_, cy_) );
-      screenshot_manager_.setCameraIntrinsics (focal_length_, height_, width_);
 
       while (!exit_ &&
              !scene_cloud_view_.cloud_viewer_.wasStopped () &&
@@ -1768,6 +1764,8 @@ main (int argc, char* argv[])
   boost::shared_ptr<pcl::Grabber> capture;
   bool triggered_capture = false;
   bool pcd_input = false;
+  int height = 480;
+  int width = 640;
 
   std::string eval_folder, match_file, openni_device, oni_file, pcd_dir, image_path;
   try
@@ -1806,6 +1804,13 @@ main (int argc, char* argv[])
       string image_depth_path = image_path + "/depth";
       float fps = 30;
       bool is_repeat = false;
+
+      pcl::ImageGrabber< pcl::PointXYZRGBA > im(image_depth_path, image_rgb_path, fps, is_repeat);
+      string depth_path = image_depth_path + "/" + im.getDepthFileNameAtIndex(0) + ".png";
+      cv::Mat m = cv::imread(depth_path);
+      height = m.rows;
+      width = m.cols;
+
       capture.reset( new pcl::ImageGrabber< pcl::PointXYZRGBA >(image_depth_path, image_rgb_path, fps, is_repeat) );
     }
     else
@@ -1851,7 +1856,7 @@ main (int argc, char* argv[])
     }
   }
 
-  KinFuLSApp app (*capture, volume_size, shift_distance, snapshot_rate, focal_length, eye_baseline);
+  KinFuLSApp app (*capture, volume_size, shift_distance, snapshot_rate, height, width, focal_length, eye_baseline);
 
   string pose_path;
   if (pc::parse_argument(argc, argv, "--poses", pose_path) > 0) {
