@@ -1830,7 +1830,7 @@ main (int argc, char* argv[])
   pc::parse_argument (argc, argv, "--volume_size", volume_size);
   pc::parse_argument (argc, argv, "-vs", volume_size);
 
-  float shift_distance = pcl::device::kinfuLS::DISTANCE_THRESHOLD;
+  float shift_distance = volume_size / 2.0f;
   pc::parse_argument (argc, argv, "--shifting_distance", shift_distance);
   pc::parse_argument (argc, argv, "-sd", shift_distance);
 

@@ -553,7 +553,7 @@ namespace pcl
           /** \brief When set to true, KinFu notifies that it is finished scanning and can be stopped. */
           bool finished_;
 
-          /** \brief // when the camera target point is farther than DISTANCE_THRESHOLD from the current cube's center, shifting occurs. In meters . */
+          /** \brief // when the camera target point is farther than the shifting distance from the current cube's center, shifting occurs. In meters . */
           float shifting_distance_;
 
           /** \brief Size of the TSDF volume in meters. */
