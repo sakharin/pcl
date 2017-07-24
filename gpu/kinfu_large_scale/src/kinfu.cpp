@@ -319,12 +319,10 @@ void pcl::gpu::kinfuLS::KinfuTracker::getVNMaps(Matrix3frm& R_g_cam, Vector3f& t
   std::vector<MapArr> nmaps_tmp;
   vmaps_tmp.resize(LEVELS);
   nmaps_tmp.resize(LEVELS);
-  int rows = 480;
-  int cols = 640;
   for (int i = 0; i < LEVELS; ++i)
   {
-    int pyr_rows = rows >> i;
-    int pyr_cols = cols >> i;
+    int pyr_rows = rows_ >> i;
+    int pyr_cols = cols_ >> i;
     vmaps_tmp[i].create (pyr_rows*3, pyr_cols);
     nmaps_tmp[i].create (pyr_rows*3, pyr_cols);
   }
