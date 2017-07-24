@@ -1512,6 +1512,8 @@ struct KinFuLSApp
 
       if (!triggered_capture_)
         capture_.stop (); // Stop stream
+
+      kinfu_->extractAndSaveWorld();
     }
     c.disconnect();
   }
