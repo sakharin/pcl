@@ -95,9 +95,9 @@ namespace pcl
         }
 
         __device__ __forceinline__ bool
-        checkInds (const int3& g) const
+        checkInds (const int3& g, pcl::gpu::kinfuLS::tsdf_buffer buffer) const
         {
-          return (g.x >= 0 && g.y >= 0 && g.z >= 0 && g.x < VOLUME_X && g.y < VOLUME_Y && g.z < VOLUME_Z);
+          return (g.x >= 0 && g.y >= 0 && g.z >= 0 && g.x < buffer.voxels_size.x && g.y < buffer.voxels_size.y && g.z < buffer.voxels_size.z);
         }
 
         __device__ __forceinline__ float
@@ -238,7 +238,7 @@ namespace pcl
             float tsdf_prev = tsdf;
 
             int3 g = getVoxel (  ray_start + ray_dir * (time_curr + time_step)  );
-            if (!checkInds (g))
+            if (!checkInds (g, buffer))
               break;
 
             tsdf = readTsdf (g.x, g.y, g.z, buffer);

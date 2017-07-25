@@ -1059,11 +1059,12 @@ struct KinFuLSApp
 {
   enum { PCD_BIN = 1, PCD_ASCII = 2, PLY = 3, MESH_PLY = 7, MESH_VTK = 8 };
 
-  KinFuLSApp(pcl::Grabber& source, float vsz, float shiftDistance, int snapshotRate, int height, int width, float focal_length, float eye_baseline) : exit_ (false), scan_ (false), scan_mesh_(false), scan_volume_ (false), pause_(false), triggered_capture_(true), independent_camera_ (false),
+  KinFuLSApp(pcl::Grabber& source, float vsz, float volume_resolution, float shiftDistance, int snapshotRate, int height, int width, float focal_length, float eye_baseline) : exit_ (false), scan_ (false), scan_mesh_(false), scan_volume_ (false), pause_(false), triggered_capture_(true), independent_camera_ (false),
           registration_ (false), integrate_colors_ (false), use_images_ (false), pcd_source_ (false), use_external_poses_ (false), height_ (height), width_ (width), focal_length_(focal_length), eye_baseline_ (eye_baseline), capture_ (source), was_lost_(false), time_ms_ (0)
   {
     //Init Kinfu Tracker
-    volume_size_ = Vector3f::Constant (vsz/*meters*/);
+    volume_size_ = Vector3f::Constant(vsz/*meters*/);
+    volume_resolution_ = Vector3i::Constant(volume_resolution);
 
     PCL_WARN ("--- CURRENT SETTINGS ---\n");
     PCL_INFO ("Volume size is set to %.2f meters\n", vsz);
@@ -1075,7 +1076,7 @@ struct KinFuLSApp
     if(shiftDistance > 2.5 * vsz)
       PCL_WARN ("WARNING Shifting distance (%.2f) is very large compared to the volume size (%.2f).\nYou can modify it using --shifting_distance.\n", shiftDistance, vsz);
 
-    kinfu_ = new pcl::gpu::kinfuLS::KinfuTracker(volume_size_, shiftDistance);
+    kinfu_ = new pcl::gpu::kinfuLS::KinfuTracker(volume_size_, volume_resolution_, shiftDistance);
 
     Eigen::Matrix3f R = Eigen::Matrix3f::Identity ();   // * AngleAxisf( pcl::deg2rad(-30.f), Vector3f::UnitX());
     Eigen::Vector3f t = volume_size_ * 0.5f - Vector3f (0, 0, volume_size_ (2) / 2 * 1.2f);
@@ -1245,7 +1246,7 @@ struct KinFuLSApp
         // kinfu_->volume().downloadTsdfAndWeighs (tsdf_volume_.volumeWriteable (), tsdf_volume_.weightsWriteable ());
         kinfu_->volume ().downloadTsdfAndWeightsLocal ();
         // tsdf_volume_.setHeader (Eigen::Vector3i (pcl::device::kinfuLS::VOLUME_X, pcl::device::kinfuLS::VOLUME_Y, pcl::device::kinfuLS::VOLUME_Z), kinfu_->volume().getSize ());
-        kinfu_->volume ().setHeader (Eigen::Vector3i (pcl::device::kinfuLS::VOLUME_X, pcl::device::kinfuLS::VOLUME_Y, pcl::device::kinfuLS::VOLUME_Z), kinfu_->volume().getSize ());
+        kinfu_->volume().setHeader(volume_resolution_, kinfu_->volume().getSize());
         // cout << "done [" << tsdf_volume_.size () << " voxels]" << endl << endl;
         cout << "done [" << kinfu_->volume ().size () << " voxels]" << endl << endl;
 
@@ -1602,6 +1603,7 @@ struct KinFuLSApp
   float cy_;
   float eye_baseline_;
   Eigen::Vector3f volume_size_;
+  Eigen::Vector3i volume_resolution_;
 
   pcl::Grabber& capture_;
   KinfuTracker *kinfu_;
@@ -1830,8 +1832,14 @@ main (int argc, char* argv[])
   catch (const pcl::PCLException& /*e*/) { return cout << "Can't open depth source" << endl, -1; }
 
   float volume_size = pcl::device::kinfuLS::VOLUME_SIZE;
-  pc::parse_argument (argc, argv, "--volume_size", volume_size);
-  pc::parse_argument (argc, argv, "-vs", volume_size);
+  if (pc::parse_argument (argc, argv, "--volume_size", volume_size) > 0 || pc::parse_argument (argc, argv, "-vs", volume_size) > 0) {
+    cout << "Set volume size to " << volume_size << "." << endl;
+  }
+
+  float volume_resolution = pcl::device::kinfuLS::VOLUME_X;
+  if (pc::parse_argument (argc, argv, "--volume_resolution", volume_resolution) > 0 || pc::parse_argument (argc, argv, "-vr", volume_resolution) > 0) {
+    cout << "Set volume resolution to " << volume_resolution << "." << endl;
+  }
 
   float shift_distance = volume_size / 2.0f;
   pc::parse_argument (argc, argv, "--shifting_distance", shift_distance);
@@ -1860,7 +1868,7 @@ main (int argc, char* argv[])
     }
   }
 
-  KinFuLSApp app (*capture, volume_size, shift_distance, snapshot_rate, height, width, focal_length, eye_baseline);
+  KinFuLSApp app (*capture, volume_size, volume_resolution, shift_distance, snapshot_rate, height, width, focal_length, eye_baseline);
 
   string pose_path;
   if (pc::parse_argument(argc, argv, "--poses", pose_path) > 0) {

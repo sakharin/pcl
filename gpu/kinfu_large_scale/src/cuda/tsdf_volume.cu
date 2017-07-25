@@ -46,19 +46,19 @@ namespace pcl
     {
       template<typename T>
       __global__ void
-      initializeVolume (PtrStep<T> volume)
+      initializeVolume (PtrStep<T> volume, int3 resolution)
       {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
 
 
-        if (x < VOLUME_X && y < VOLUME_Y)
+        if (x < resolution.x && y < resolution.y)
         {
             T *pos = volume.ptr(y) + x;
-            int z_step = VOLUME_Y * volume.step / sizeof(*pos);
+            int z_step = resolution.y * volume.step / sizeof(*pos);
 
   #pragma unroll
-            for(int z = 0; z < VOLUME_Z; ++z, pos+=z_step)
+            for(int z = 0; z < resolution.z; ++z, pos+=z_step)
               pack_tsdf (0.f, 0, *pos);
         }
       }
@@ -153,14 +153,14 @@ namespace pcl
       } // clearSliceKernel
 
       void
-      initVolume (PtrStep<short2> volume)
+      initVolume (PtrStep<short2> volume, int3 resolution)
       {
         dim3 block (16, 16);
         dim3 grid (1, 1, 1);
-        grid.x = divUp (VOLUME_X, block.x);
-        grid.y = divUp (VOLUME_Y, block.y);
+        grid.x = divUp (resolution.x, block.x);
+        grid.y = divUp (resolution.y, block.y);
 
-        initializeVolume<<<grid, block>>>(volume);
+        initializeVolume<<<grid, block>>>(volume, resolution);
         cudaSafeCall ( cudaGetLastError () );
         cudaSafeCall (cudaDeviceSynchronize ());
       }
@@ -350,16 +350,16 @@ namespace pcl
 
       //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
       void
-      integrateTsdfVolume (const PtrStepSz<ushort>& depth_raw, const Intr& intr, const float3& volume_size,
+      integrateTsdfVolume (const PtrStepSz<ushort>& depth_raw, const Intr& intr, const float3& volume_size, const int3& volume_resolution,
                                         const Mat33& Rcurr_inv, const float3& tcurr, float tranc_dist,
                                         PtrStep<short2> volume)
       {
         Tsdf tsdf;
 
         tsdf.volume = volume;
-        tsdf.cell_size.x = volume_size.x / VOLUME_X;
-        tsdf.cell_size.y = volume_size.y / VOLUME_Y;
-        tsdf.cell_size.z = volume_size.z / VOLUME_Z;
+        tsdf.cell_size.x = volume_size.x / volume_resolution.x;
+        tsdf.cell_size.y = volume_size.y / volume_resolution.y;
+        tsdf.cell_size.z = volume_size.z / volume_resolution.z;
 
         tsdf.intr = intr;
 
@@ -370,7 +370,7 @@ namespace pcl
         tsdf.tranc_dist_mm = tranc_dist*1000; //mm
 
         dim3 block (Tsdf::CTA_SIZE_X, Tsdf::CTA_SIZE_Y);
-        dim3 grid (divUp (VOLUME_X, block.x), divUp (VOLUME_Y, block.y));
+        dim3 grid (divUp (volume_resolution.x, block.x), divUp (volume_resolution.y, block.y));
 
       #if 0
         //tsdf2<<<grid, block>>>(volume, tranc_dist, Rcurr_inv, tcurr, intr, depth_raw, tsdf.cell_size);
@@ -616,7 +616,7 @@ namespace pcl
       //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
       void
       integrateTsdfVolume (const PtrStepSz<ushort>& depth, const Intr& intr,
-                                        const float3& volume_size, const Mat33& Rcurr_inv, const float3& tcurr,
+                                        const float3& volume_size, const int3& volume_resolution, const Mat33& Rcurr_inv, const float3& tcurr,
                                         float tranc_dist,
                                         PtrStep<short2> volume, const pcl::gpu::kinfuLS::tsdf_buffer* buffer, DeviceArray2D<float>& depthScaled)
       {

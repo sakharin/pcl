@@ -95,10 +95,11 @@ namespace pcl
 
           /** \brief Constructor
             * \param[in] volumeSize physical size of the volume represented by the tdsf volume. In meters.
+            * \param[in] volumeResolution number of voxel in each dimension.
             * \param[in] shiftingDistance when the camera target point is farther than shiftingDistance from the center of the volume, shiting occurs. In meters.
             * \note The target point is located at (0, 0, 0.6*volumeSize) in camera coordinates.
             */
-          KinfuTracker (const Eigen::Vector3f &volumeSize, const float shiftingDistance);
+          KinfuTracker (const Eigen::Vector3f &volumeSize, const Eigen::Vector3i &volumeResolution, const float shiftingDistance);
 
           /** \brief Sets Depth camera intrinsics
             * \param[in] rows number of rows of the image
@@ -557,7 +558,9 @@ namespace pcl
           float shifting_distance_;
 
           /** \brief Size of the TSDF volume in meters. */
-          float volume_size_;
+          Eigen::Vector3f volume_size_;
+
+          Eigen::Vector3i volume_resolution_;
 
           /** \brief True if ICP is lost */
           bool lost_;

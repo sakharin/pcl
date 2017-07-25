@@ -133,7 +133,8 @@ pcl::gpu::kinfuLS::TsdfVolume::getTsdfTruncDist () const
 void
 pcl::gpu::kinfuLS::TsdfVolume::reset()
 {
-  pcl::device::kinfuLS::initVolume(volume_);
+  int3 res = make_int3(resolution_(0, 0), resolution_(1, 0), resolution_(2, 0));
+  pcl::device::kinfuLS::initVolume(volume_, res);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////

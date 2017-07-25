@@ -197,9 +197,10 @@ namespace pcl
 
       /** \brief Perform tsdf volume initialization
         *  \param[out] array volume to be initialized
+        *  \param[in] resolution resolution of the volume
         */
       PCL_EXPORTS void
-      initVolume(PtrStep<short2> array);
+      initVolume(PtrStep<short2> array, int3 resolution);
 
       //first version
       /** \brief Performs Tsfg volume uptation (extra obsolete now)
@@ -212,7 +213,7 @@ namespace pcl
         * \param[in] volume tsdf volume to be updated
         */
       void
-      integrateTsdfVolume (const PtrStepSz<ushort>& depth_raw, const Intr& intr, const float3& volume_size,
+      integrateTsdfVolume (const PtrStepSz<ushort>& depth_raw, const Intr& intr, const float3& volume_size, const int3& volume_resolution,
                           const Mat33& Rcurr_inv, const float3& tcurr, float tranc_dist, PtrStep<short2> volume);
 
       //second version
@@ -220,6 +221,7 @@ namespace pcl
         * \param[in] depth Kinect depth image
         * \param[in] intr camera intrinsics
         * \param[in] volume_size size of volume in mm
+        * \param[in] volume_resolution resolution of volume
         * \param[in] Rcurr_inv inverse rotation for current camera pose
         * \param[in] tcurr translation for current camera pose
         * \param[in] tranc_dist tsdf truncation distance
@@ -228,7 +230,7 @@ namespace pcl
         * \param[out] depthScaled Buffer for scaled depth along ray
         */
       PCL_EXPORTS void
-      integrateTsdfVolume (const PtrStepSz<ushort>& depth, const Intr& intr, const float3& volume_size,
+      integrateTsdfVolume (const PtrStepSz<ushort>& depth, const Intr& intr, const float3& volume_size, const int3& volume_resolution,
                           const Mat33& Rcurr_inv, const float3& tcurr, float tranc_dist, PtrStep<short2> volume, const pcl::gpu::kinfuLS::tsdf_buffer* buffer, DeviceArray2D<float>& depthScaled);
 
       /** \brief Function that clears the TSDF values. The clearing takes place from the origin (in indices) to an offset in X,Y,Z values accordingly
@@ -243,9 +245,10 @@ namespace pcl
 
       /** \brief Initialzied color volume
         * \param[out] color_volume color volume for initialization
+        *  \param[in] resolution resolution of the volume
         */
       void
-      initColorVolume(PtrStep<uchar4> color_volume);
+      initColorVolume(PtrStep<uchar4> color_volume, int3 resolution);
 
       /** \brief Performs integration in color volume
         * \param[in] intr Depth camera intrionsics structure

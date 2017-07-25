@@ -160,6 +160,18 @@ namespace pcl
             buffer_.volume_size.z = size_z;
           }
 
+          /** \brief Set number of voxels.
+            * \param[in] nb_voxels_x number of voxels for X axis of the volume represented by the TSDF buffer.
+            * \param[in] nb_voxels_y number of voxels for Y axis of the volume represented by the TSDF buffer.
+            * \param[in] nb_voxels_z number of voxels for Z axis of the volume represented by the TSDF buffer.
+            */
+          void setVoxelSize (const int nb_voxels_x, const int nb_voxels_y, const int nb_voxels_z)
+          {
+            buffer_.voxels_size.x = nb_voxels_x;
+            buffer_.voxels_size.y = nb_voxels_y;
+            buffer_.voxels_size.z = nb_voxels_z;
+          }
+
           /** \brief Set the physical size represented by the default TSDF volume.
           * \param[in] size size of the volume on all axis, in meters.
           */

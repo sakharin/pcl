@@ -75,13 +75,14 @@ namespace pcl
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-pcl::gpu::kinfuLS::KinfuTracker::KinfuTracker (const Eigen::Vector3f &volume_size, const float shiftingDistance) :
+pcl::gpu::kinfuLS::KinfuTracker::KinfuTracker (const Eigen::Vector3f &volume_size, const Eigen::Vector3i &volume_resolution, const float shiftingDistance) :
   cyclical_( VOLUME_SIZE / 2.0f, VOLUME_SIZE, VOLUME_X), rows_(480), cols_(680), focal_length_(FOCAL_LENGTH), global_time_(0), max_icp_distance_(0), integration_metric_threshold_(0.f), perform_last_scan_ (false), finished_(false), lost_ (false), disable_icp_ (false), use_external_poses_(false)
 {
   //const Vector3f volume_size = Vector3f::Constant (VOLUME_SIZE);
-  const Vector3i volume_resolution (VOLUME_X, VOLUME_Y, VOLUME_Z);
+  //const Vector3i volume_resolution (VOLUME_X, VOLUME_Y, VOLUME_Z);
 
-  volume_size_ = volume_size(0);
+  volume_size_ << volume_size(0, 0), volume_size(1, 0), volume_size(2, 0);
+  volume_resolution_ << volume_resolution(0, 0), volume_resolution(1, 0), volume_resolution(2, 0);
 
   tsdf_volume_ = TsdfVolume::Ptr ( new TsdfVolume(volume_resolution) );
   tsdf_volume_->setSize (volume_size);
@@ -90,7 +91,8 @@ pcl::gpu::kinfuLS::KinfuTracker::KinfuTracker (const Eigen::Vector3f &volume_siz
 
   // set cyclical buffer values
   cyclical_.setDistanceThreshold (shifting_distance_);
-  cyclical_.setVolumeSize (volume_size_, volume_size_, volume_size_);
+  cyclical_.setVolumeSize (volume_size_(0, 0), volume_size_(1, 0), volume_size_(2, 0));
+  cyclical_.setVoxelSize(volume_resolution_(0, 0), volume_resolution_(1, 0), volume_resolution_(2, 0));
 
   init_Rcam_ = Eigen::Matrix3f::Identity ();// * AngleAxisf(-30.f/180*3.1415926, Vector3f::UnitX());
   init_tcam_ = volume_size * 0.5f - Vector3f (0, 0, volume_size (2) / 2 * 1.2f);
@@ -369,7 +371,7 @@ pcl::gpu::kinfuLS::KinfuTracker::extractAndSaveWorld ()
 
   //extract current volume to world model
   PCL_INFO("Extracting current volume...");
-  cyclical_.checkForShift(tsdf_volume_, getCameraPose (), 0.6 * volume_size_, true, true, true); // this will force the extraction of the whole cube.
+  cyclical_.checkForShift(tsdf_volume_, getCameraPose (), 0.6 * volume_size_(0, 0), true, true, true); // this will force the extraction of the whole cube.
   PCL_INFO("Done\n");
 
   finished_ = true; // TODO maybe we could add a bool param to prevent kinfuLS from exiting after we saved the current world model
@@ -433,7 +435,7 @@ pcl::gpu::kinfuLS::KinfuTracker::reset ()
 
   // reset estimated pose
   last_estimated_rotation_= Eigen::Matrix3f::Identity ();
-  last_estimated_translation_= Vector3f (volume_size_, volume_size_, volume_size_) * 0.5f - Vector3f (0, 0, volume_size_ / 2 * 1.2f);
+  last_estimated_translation_= Vector3f (volume_size_(0, 0), volume_size_(1, 0), volume_size_(2, 0)) * 0.5f - Vector3f (0, 0, volume_size_(0, 0) / 2 * 1.2f);
 
 
   lost_=false;
@@ -763,6 +765,7 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
 
   // Physical volume size (meters)
   float3 device_volume_size = device_cast<const float3> (tsdf_volume_->getSize());
+  int3 device_volume_resolution = make_int3(volume_resolution_(0, 0), volume_resolution_(1, 0), volume_resolution_(2, 0));
 
   // process the incoming raw depth map
   prepareMaps (depth_raw, intr);
@@ -786,7 +789,7 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
     convertTransforms (initial_cam_rot, initial_cam_rot_inv, initial_cam_trans, device_initial_cam_rot, device_initial_cam_rot_inv, device_initial_cam_trans);
 
     // integrate current depth map into tsdf volume, from default initial pose.
-    integrateTsdfVolume(depth_raw, intr, device_volume_size, device_initial_cam_rot_inv, device_initial_cam_trans, tsdf_volume_->getTsdfTruncDist(), tsdf_volume_->data(), getCyclicalBufferStructure (), depthRawScaled_);
+    integrateTsdfVolume(depth_raw, intr, device_volume_size, device_volume_resolution, device_initial_cam_rot_inv, device_initial_cam_trans, tsdf_volume_->getTsdfTruncDist(), tsdf_volume_->data(), getCyclicalBufferStructure (), depthRawScaled_);
 
     // transform vertex and normal maps for each pyramid level
     for (int i = 0; i < LEVELS; ++i)
@@ -908,7 +911,7 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
 
   ///////////////////////////////////////////////////////////////////////////////////////////
   // check if we need to shift
-  has_shifted_ = cyclical_.checkForShift(tsdf_volume_, getCameraPose (), 0.6 * volume_size_, true, perform_last_scan_); // TODO make target distance from camera a param
+  has_shifted_ = cyclical_.checkForShift(tsdf_volume_, getCameraPose (), 0.6 * volume_size_(0, 0), true, perform_last_scan_); // TODO make target distance from camera a param
   if(has_shifted_)
     PCL_WARN ("SHIFTING\n");
 
@@ -943,7 +946,7 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
     // Volume integration
     if (integrate)
     {
-      integrateTsdfVolume (depth_raw, intr, device_volume_size, R_device_R_cam_g, t_device_R_g_cam, tsdf_volume_->getTsdfTruncDist (), tsdf_volume_->data (), getCyclicalBufferStructure (), depthRawScaled_);
+      integrateTsdfVolume (depth_raw, intr, device_volume_size, device_volume_resolution, R_device_R_cam_g, t_device_R_g_cam, tsdf_volume_->getTsdfTruncDist (), tsdf_volume_->data (), getCyclicalBufferStructure (), depthRawScaled_);
     }
   }
 

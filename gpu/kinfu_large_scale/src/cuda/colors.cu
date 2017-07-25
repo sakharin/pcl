@@ -47,31 +47,31 @@ namespace pcl
     namespace kinfuLS
     {
       __global__ void
-      initColorVolumeKernel (PtrStep<uchar4> volume)
+      initColorVolumeKernel (PtrStep<uchar4> volume, int3 resolution)
       {
         int x = threadIdx.x + blockIdx.x * blockDim.x;
         int y = threadIdx.y + blockIdx.y * blockDim.y;
 
-        if (x < VOLUME_X && y < VOLUME_Y)
+        if (x < resolution.x && y < resolution.y)
         {
           uchar4 *pos = volume.ptr (y) + x;
-          int z_step = VOLUME_Y * volume.step / sizeof(*pos);
+          int z_step = resolution.y * volume.step / sizeof(*pos);
 
   #pragma unroll
-          for (int z = 0; z < VOLUME_Z; ++z, pos += z_step)
+          for (int z = 0; z < resolution.z; ++z, pos += z_step)
             *pos = make_uchar4 (0, 0, 0, 0);
         }
       }
 
       void
-      initColorVolume (PtrStep<uchar4> color_volume)
+      initColorVolume (PtrStep<uchar4> color_volume, int3 resolution)
       {
         dim3 block (32, 16);
         dim3 grid (1, 1, 1);
-        grid.x = divUp (VOLUME_X, block.x);
-        grid.y = divUp (VOLUME_Y, block.y);
+        grid.x = divUp (resolution.x, block.x);
+        grid.y = divUp (resolution.y, block.y);
 
-        initColorVolumeKernel<<<grid, block>>>(color_volume);
+        initColorVolumeKernel<<<grid, block>>>(color_volume, resolution);
         cudaSafeCall ( cudaGetLastError () );
         cudaSafeCall (cudaDeviceSynchronize ());
       }

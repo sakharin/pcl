@@ -72,7 +72,8 @@ pcl::gpu::kinfuLS::ColorVolume::~ColorVolume()
 void
 pcl::gpu::kinfuLS::ColorVolume::reset()
 {
-  pcl::device::kinfuLS::initColorVolume(color_volume_);
+  int3 res = make_int3(resolution_(0, 0), resolution_(1, 0), resolution_(2, 0));
+  pcl::device::kinfuLS::initColorVolume(color_volume_, res);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
