@@ -1287,7 +1287,7 @@ struct KinFuLSApp
     if (enable_texture_extraction_ && !kinfu_->icpIsLost ()) {
       if ( (frame_counter_  % snapshot_rate_) == 0 )   // Should be defined as a parameter. Done.
       {
-        screenshot_manager_.saveImage (kinfu_->getCameraPose (), rgb24);
+        screenshot_manager_.saveImage(kinfu_->getCameraPose(), rgb24);
       }
     }
 
@@ -1838,8 +1838,9 @@ main (int argc, char* argv[])
   pc::parse_argument (argc, argv, "-sd", shift_distance);
 
   int snapshot_rate = pcl::device::kinfuLS::SNAPSHOT_RATE; // defined in device.h
-  pc::parse_argument (argc, argv, "--snapshot_rate", snapshot_rate);
-  pc::parse_argument (argc, argv, "-sr", snapshot_rate);
+  if (pc::parse_argument(argc, argv, "--snapshot_rate", snapshot_rate) > 0 || pc::parse_argument(argc, argv, "-sr", snapshot_rate)) {
+    cout << "Set snapshot rate to " << snapshot_rate << "." << endl;
+  }
 
   float focal_length;
   if (pc::parse_argument(argc, argv, "--focal_length", focal_length) > 0) {
