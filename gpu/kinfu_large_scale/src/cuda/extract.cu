@@ -287,7 +287,7 @@ namespace pcl
           int ftid = Block::flattenedThreadId ();
 
           int minimum_Z = 0;
-          int maximum_Z = VOLUME_Z - 1;
+          int maximum_Z = buffer.voxels_size.z - 1;
 
           for (int z = minimum_Z; z < maximum_Z; ++z)
           {
@@ -368,7 +368,7 @@ namespace pcl
                 break;
             }
 
-            } /* for(int z = 0; z < VOLUME_Z - 1; ++z) */
+          } /* for(int z = 0; z < VOLUME_Z - 1; ++z) */
 
           ///////////////////////////
           // Prepare for future scans
@@ -464,7 +464,7 @@ namespace pcl
         fs.output_intensity = output_intensities;
 
         dim3 block (CTA_SIZE_X, CTA_SIZE_Y);
-        dim3 grid (divUp (VOLUME_X, block.x), divUp (VOLUME_Y, block.y));
+        dim3 grid (divUp (buffer->voxels_size.x, block.x), divUp (buffer->voxels_size.y, block.y));
 
         //Compute slice bounds
         int newX = buffer->origin_GRID.x + shiftX;
