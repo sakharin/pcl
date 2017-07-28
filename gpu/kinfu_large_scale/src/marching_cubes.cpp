@@ -65,7 +65,8 @@ pcl::gpu::kinfuLS::MarchingCubes::run(const TsdfVolume& tsdf, DeviceArray<PointT
 
   pcl::device::kinfuLS::bindTextures(edgeTable_, triTable_, numVertsTable_);
 
-  int active_voxels = pcl::device::kinfuLS::getOccupiedVoxels(tsdf.data(), occupied_voxels_buffer_);
+  int3 volume_resolution = device_cast<const int3>(tsdf.getResolution());
+  int active_voxels = pcl::device::kinfuLS::getOccupiedVoxels(tsdf.data(), volume_resolution, occupied_voxels_buffer_);
   if(!active_voxels)
   {
     pcl::device::kinfuLS::unbindTextures();
@@ -77,7 +78,7 @@ pcl::gpu::kinfuLS::MarchingCubes::run(const TsdfVolume& tsdf, DeviceArray<PointT
   int total_vertexes = pcl::device::kinfuLS::computeOffsetsAndTotalVertexes(occupied_voxels);
 
   float3 volume_size = device_cast<const float3>(tsdf.getSize());
-  pcl::device::kinfuLS::generateTriangles(tsdf.data(), occupied_voxels, volume_size, (DeviceArray<pcl::device::kinfuLS::PointType>&)triangles_buffer);
+  pcl::device::kinfuLS::generateTriangles(tsdf.data(), occupied_voxels, volume_size, volume_resolution, (DeviceArray<pcl::device::kinfuLS::PointType>&)triangles_buffer);
 
   pcl::device::kinfuLS::unbindTextures();
   return DeviceArray<PointType>(triangles_buffer.ptr(), total_vertexes);

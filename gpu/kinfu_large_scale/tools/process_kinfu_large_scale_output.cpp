@@ -42,6 +42,8 @@
 
 #include <pcl/console/parse.h>
 
+namespace pc = pcl::console;
+
 int
 print_help ()
 {
@@ -78,6 +80,10 @@ main (int argc, char** argv)
     return (-1);
   }
 
+  float volume_resolution = pcl::device::kinfuLS::VOLUME_X;
+  pc::parse_argument (argc, argv, "--volume_resolution", volume_resolution);
+  pc::parse_argument (argc, argv, "-vr", volume_resolution);
+
   try {
 
     // Creating world model object
@@ -90,7 +96,7 @@ main (int argc, char** argv)
     std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f> > transforms;
 
     //Get world as a vector of cubes
-    wm.getWorldAsCubes (pcl::device::kinfuLS::VOLUME_X, clouds, transforms, 0.025); // 2.5% overlapp (12 cells with a 512-wide cube)
+    wm.getWorldAsCubes (volume_resolution, clouds, transforms, 0.025); // 2.5% overlapp (12 cells with a 512-wide cube)
 
     //Creating the standalone marching cubes instance
     float volume_size = pcl::device::kinfuLS::VOLUME_SIZE;
@@ -99,7 +105,7 @@ main (int argc, char** argv)
 
     PCL_WARN ("Processing world with volume size set to %.2f meters\n", volume_size);
 
-    pcl::gpu::kinfuLS::StandaloneMarchingCubes<pcl::PointXYZI> m_cubes (pcl::device::kinfuLS::VOLUME_X, pcl::device::kinfuLS::VOLUME_Y, pcl::device::kinfuLS::VOLUME_Z, volume_size);
+    pcl::gpu::kinfuLS::StandaloneMarchingCubes<pcl::PointXYZI> m_cubes (volume_resolution, volume_resolution, volume_resolution, volume_size);
 
     //~ //Creating the output
     //~ boost::shared_ptr<pcl::PolygonMesh> mesh_ptr_;

@@ -535,11 +535,12 @@ namespace pcl
 
       /** \brief Scans tsdf volume and retrieves occuped voxes
         * \param[in] volume tsdf volume
+        * \param[in] volume_resolution number of voxel on each direction
         * \param[out] occupied_voxels buffer for occuped voxels. The function fulfills first row with voxel ids and second row with number of vertextes.
         * \return number of voxels in the buffer
         */
       int
-      getOccupiedVoxels(const PtrStep<short2>& volume, DeviceArray2D<int>& occupied_voxels);
+      getOccupiedVoxels(const PtrStep<short2>& volume, const int3& volume_resolution, DeviceArray2D<int>& occupied_voxels);
 
       /** \brief Computes total number of vertexes for all voxels and offsets of vertexes in final triangle array
         * \param[out] occupied_voxels buffer with occuped voxels. The function fulfills 3nd only with offsets
@@ -550,12 +551,13 @@ namespace pcl
 
       /** \brief Generates final triangle array
         * \param[in] volume tsdf volume
+        * \param[in] volume_resolution number of voxel on each direction
         * \param[in] occupied_voxels occuped voxel ids (first row), number of vertexes(second row), offsets(third row).
         * \param[in] volume_size volume size in meters
         * \param[out] output triangle array
         */
       void
-      generateTriangles(const PtrStep<short2>& volume, const DeviceArray2D<int>& occupied_voxels, const float3& volume_size, DeviceArray<PointType>& output);
+      generateTriangles(const PtrStep<short2>& volume, const DeviceArray2D<int>& occupied_voxels, const float3& volume_size, const int3& volume_resolution, DeviceArray<PointType>& output);
     }
   }
 }

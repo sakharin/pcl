@@ -87,13 +87,14 @@ namespace pcl
       struct CubeIndexEstimator
       {
         PtrStep<short2> volume;
+        int3 volume_resolution;
 
             static __device__ __forceinline__ float isoValue() { return 0.f; }
 
         __device__ __forceinline__ void
         readTsdf (int x, int y, int z, float& tsdf, int& weight) const
         {
-          short2 pos = volume.ptr (VOLUME_Y * z + y)[x];
+          short2 pos = volume.ptr (volume_resolution.y * z + y)[x];
           unpack_tsdf (pos, tsdf, weight);
         }
 
@@ -146,7 +147,7 @@ namespace pcl
           int x = threadIdx.x + blockIdx.x * CTA_SIZE_X;
           int y = threadIdx.y + blockIdx.y * CTA_SIZE_Y;
 
-          if (__all (x >= VOLUME_X) || __all (y >= VOLUME_Y))
+          if (__all (x >= volume_resolution.x) || __all (y >= volume_resolution.y))
             return;
 
           int ftid = Block::flattenedThreadId ();
@@ -155,10 +156,10 @@ namespace pcl
 
           volatile __shared__ int warps_buffer[WARPS_COUNT];
 
-          for (int z = 0; z < VOLUME_Z - 1; z++)
+          for (int z = 0; z < volume_resolution.z - 1; z++)
           {
             int numVerts = 0;;
-            if (x + 1 < VOLUME_X && y + 1 < VOLUME_Y)
+            if (x + 1 < volume_resolution.x && y + 1 < volume_resolution.y)
             {
               float field[8];
               int cubeindex = computeCubeIndex (x, y, z, field);
@@ -182,7 +183,7 @@ namespace pcl
 
             if (old_global_voxels_count + offs < max_size && numVerts > 0)
             {
-              voxels_indeces[old_global_voxels_count + offs] = VOLUME_Y * VOLUME_X * z + VOLUME_X * y + x;
+              voxels_indeces[old_global_voxels_count + offs] = volume_resolution.y * volume_resolution.x * z + volume_resolution.x * y + x;
               vetexes_number[old_global_voxels_count + offs] = numVerts;
             }
 
@@ -214,17 +215,17 @@ namespace pcl
       __global__ void getOccupiedVoxelsKernel (const OccupiedVoxels ov) { ov (); }
 
       int
-      getOccupiedVoxels (const PtrStep<short2>& volume, DeviceArray2D<int>& occupied_voxels)
+      getOccupiedVoxels (const PtrStep<short2>& volume, const int3& volume_resolution, DeviceArray2D<int>& occupied_voxels)
       {
         OccupiedVoxels ov;
         ov.volume = volume;
-
+        ov.volume_resolution = make_int3(volume_resolution.x, volume_resolution.y, volume_resolution.z);
         ov.voxels_indeces = occupied_voxels.ptr (0);
         ov.vetexes_number = occupied_voxels.ptr (1);
         ov.max_size = occupied_voxels.cols ();
 
         dim3 block (OccupiedVoxels::CTA_SIZE_X, OccupiedVoxels::CTA_SIZE_Y);
-        dim3 grid (divUp (VOLUME_X, block.x), divUp (VOLUME_Y, block.y));
+        dim3 grid (divUp (volume_resolution.x, block.x), divUp (volume_resolution.y, block.y));
 
         //cudaFuncSetCacheConfig(getOccupiedVoxelsKernel, cudaFuncCachePreferL1);
         //printFuncAttrib(getOccupiedVoxelsKernel);
@@ -312,9 +313,9 @@ namespace pcl
 
           int voxel = occupied_voxels[idx];
 
-          int z = voxel / (VOLUME_X * VOLUME_Y);
-          int y = (voxel - z * VOLUME_X * VOLUME_Y) / VOLUME_X;
-          int x = (voxel - z * VOLUME_X * VOLUME_Y) - y * VOLUME_X;
+          int z = voxel / (volume_resolution.x * volume_resolution.y);
+          int y = (voxel - z * volume_resolution.x * volume_resolution.y) / volume_resolution.x;
+          int x = (voxel - z * volume_resolution.x * volume_resolution.y) - y * volume_resolution.x;
 
           float f[8];
           int cubeindex = computeCubeIndex (x, y, z, f);
@@ -374,17 +375,18 @@ namespace pcl
       trianglesGeneratorKernel (const TrianglesGenerator tg) {tg (); }
 
       void
-      generateTriangles (const PtrStep<short2>& volume, const DeviceArray2D<int>& occupied_voxels, const float3& volume_size, DeviceArray<PointType>& output)
+      generateTriangles (const PtrStep<short2>& volume, const DeviceArray2D<int>& occupied_voxels, const float3& volume_size, const int3& volume_resolution, DeviceArray<PointType>& output)
       {
         TrianglesGenerator tg;
 
         tg.volume = volume;
+        tg.volume_resolution = make_int3(volume_resolution.x, volume_resolution.y, volume_resolution.z);
         tg.occupied_voxels = occupied_voxels.ptr (0);
         tg.vertex_ofssets = occupied_voxels.ptr (2);
         tg.voxels_count = occupied_voxels.cols ();
-        tg.cell_size.x = volume_size.x / VOLUME_X;
-        tg.cell_size.y = volume_size.y / VOLUME_Y;
-        tg.cell_size.z = volume_size.z / VOLUME_Z;
+        tg.cell_size.x = volume_size.x / volume_resolution.x;
+        tg.cell_size.y = volume_size.y / volume_resolution.y;
+        tg.cell_size.z = volume_size.z / volume_resolution.z;
         tg.output = output;
 
         dim3 block (TrianglesGenerator::CTA_SIZE);
