@@ -105,7 +105,7 @@ EIGEN_MAKE_ALIGNED_OPERATOR_NEW
         };
 
         /** \brief Default buffer size for fetching cloud. It limits max number of points that can be extracted */
-        enum { DEFAULT_CLOUD_BUFFER_SIZE = 10 * 1000 * 1000 };
+        enum { DEFAULT_CLOUD_BUFFER_SIZE = 32 * 1000 * 1000 };
 
         /** \brief Constructor
           * \param[in] resolution volume resolution
