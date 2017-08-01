@@ -258,12 +258,13 @@ namespace pcl
         * \param[in] vmap Raycasted vertex map
         * \param[in] colors RGB colors for current frame
         * \param[in] volume_size volume size in meters
+        * \param[in] volume_resolution resolution of volume
         * \param[in] color_volume color volume to be integrated
         * \param[in] max_weight max weight for running color average. Zero means not average, one means average with prev value, etc.
         */
       void
       updateColorVolume(const Intr& intr, float tranc_dist, const Mat33& R_inv, const float3& t, const MapArr& vmap,
-              const PtrStepSz<uchar3>& colors, const float3& volume_size, PtrStep<uchar4> color_volume, int max_weight = 1);
+              const PtrStepSz<uchar3>& colors, const float3& volume_size, const int3& volume_resolution, PtrStep<uchar4> color_volume, int max_weight = 1);
 
       ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////
       // Raycast and view generation

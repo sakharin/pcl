@@ -560,7 +560,14 @@ namespace pcl
           /** \brief Size of the TSDF volume in meters. */
           Eigen::Vector3f volume_size_;
 
+          /** \brief Number of voxels on each axis. */
           Eigen::Vector3i volume_resolution_;
+
+          /** \brief Size of the TSDF volume in meters. */
+          float3 device_volume_size_;
+
+          /** \brief Number of voxels on each axis. */
+          int3 device_volume_resolution_;
 
           /** \brief True if ICP is lost */
           bool lost_;

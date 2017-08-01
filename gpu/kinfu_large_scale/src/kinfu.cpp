@@ -83,6 +83,8 @@ pcl::gpu::kinfuLS::KinfuTracker::KinfuTracker (const Eigen::Vector3f &volume_siz
 
   volume_size_ << volume_size(0, 0), volume_size(1, 0), volume_size(2, 0);
   volume_resolution_ << volume_resolution(0, 0), volume_resolution(1, 0), volume_resolution(2, 0);
+  device_volume_size_ = make_float3(volume_size_(0, 0), volume_size_(1, 0), volume_size_(2, 0));
+  device_volume_resolution_ = make_int3(volume_resolution_(0, 0), volume_resolution_(1, 0), volume_resolution_(2, 0));
 
   tsdf_volume_ = TsdfVolume::Ptr ( new TsdfVolume(volume_resolution) );
   tsdf_volume_->setSize (volume_size);
@@ -763,10 +765,6 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
   // Intrisics of the camera
   Intr intr (fx_, fy_, cx_, cy_);
 
-  // Physical volume size (meters)
-  float3 device_volume_size = device_cast<const float3> (tsdf_volume_->getSize());
-  int3 device_volume_resolution = make_int3(volume_resolution_(0, 0), volume_resolution_(1, 0), volume_resolution_(2, 0));
-
   // process the incoming raw depth map
   prepareMaps (depth_raw, intr);
 
@@ -789,7 +787,7 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
     convertTransforms (initial_cam_rot, initial_cam_rot_inv, initial_cam_trans, device_initial_cam_rot, device_initial_cam_rot_inv, device_initial_cam_trans);
 
     // integrate current depth map into tsdf volume, from default initial pose.
-    integrateTsdfVolume(depth_raw, intr, device_volume_size, device_volume_resolution, device_initial_cam_rot_inv, device_initial_cam_trans, tsdf_volume_->getTsdfTruncDist(), tsdf_volume_->data(), getCyclicalBufferStructure (), depthRawScaled_);
+    integrateTsdfVolume(depth_raw, intr, device_volume_size_, device_volume_resolution_, device_initial_cam_rot_inv, device_initial_cam_trans, tsdf_volume_->getTsdfTruncDist(), tsdf_volume_->data(), getCyclicalBufferStructure (), depthRawScaled_);
 
     // transform vertex and normal maps for each pyramid level
     for (int i = 0; i < LEVELS; ++i)
@@ -946,7 +944,7 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
     // Volume integration
     if (integrate)
     {
-      integrateTsdfVolume (depth_raw, intr, device_volume_size, device_volume_resolution, R_device_R_cam_g, t_device_R_g_cam, tsdf_volume_->getTsdfTruncDist (), tsdf_volume_->data (), getCyclicalBufferStructure (), depthRawScaled_);
+      integrateTsdfVolume (depth_raw, intr, device_volume_size_, device_volume_resolution_, R_device_R_cam_g, t_device_R_g_cam, tsdf_volume_->getTsdfTruncDist (), tsdf_volume_->data (), getCyclicalBufferStructure (), depthRawScaled_);
     }
   }
 
@@ -954,10 +952,10 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth_raw)
   // Ray casting
   {
     // generate synthetic vertex and normal maps from newly-found pose.
-    raycast (intr, R_device_R_g_cam, t_device_R_g_cam, tsdf_volume_->getTsdfTruncDist (), device_volume_size, tsdf_volume_->data (), getCyclicalBufferStructure (), vmaps_g_prev_R_[0], nmaps_g_prev_R_[0]);
+    raycast (intr, R_device_R_g_cam, t_device_R_g_cam, tsdf_volume_->getTsdfTruncDist (), device_volume_size_, tsdf_volume_->data (), getCyclicalBufferStructure (), vmaps_g_prev_R_[0], nmaps_g_prev_R_[0]);
 
     // Ray casting for the left camera
-    raycast (intr, R_device_L_g_cam, t_device_L_g_cam, tsdf_volume_->getTsdfTruncDist (), device_volume_size, tsdf_volume_->data (), getCyclicalBufferStructure (), vmaps_g_prev_L_[0], nmaps_g_prev_L_[0]);
+    raycast (intr, R_device_L_g_cam, t_device_L_g_cam, tsdf_volume_->getTsdfTruncDist (), device_volume_size_, tsdf_volume_->data (), getCyclicalBufferStructure (), vmaps_g_prev_L_[0], nmaps_g_prev_L_[0]);
 
     // POST-PROCESSING: We need to transform the newly raycasted maps into the global space.
     Mat33&  rotation_id = device_cast<Mat33> (rmats_[0]); /// Identity Rotation Matrix. Because we never rotate our volume
@@ -1138,7 +1136,6 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth, const View& 
 
   if (res && color_volume_)
   {
-    const float3 device_volume_size = device_cast<const float3> (tsdf_volume_->getSize());
     Intr intr(fx_, fy_, cx_, cy_);
 
     Matrix3frm R_inv = rmats_.back().inverse();
@@ -1148,7 +1145,7 @@ pcl::gpu::kinfuLS::KinfuTracker::operator() (const DepthMap& depth, const View& 
     float3& device_tcurr = device_cast<float3> (t);
 
     updateColorVolume(intr, tsdf_volume_->getTsdfTruncDist(), device_Rcurr_inv, device_tcurr, vmaps_g_prev_R_[0],
-        colors, device_volume_size, color_volume_->data(), color_volume_->getMaxWeight());
+        colors, device_volume_size_, device_volume_resolution_, color_volume_->data(), color_volume_->getMaxWeight());
   }
 
   return res;

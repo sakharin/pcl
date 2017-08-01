@@ -112,6 +112,8 @@ namespace pcl
 
         mutable PtrStep<uchar4> color_volume;
 
+        int3 volume_resolution;
+
         __device__ __forceinline__ int3
         getVoxel (float3 point) const
         {
@@ -141,10 +143,10 @@ namespace pcl
           int x = threadIdx.x + blockIdx.x * blockDim.x;
           int y = threadIdx.y + blockIdx.y * blockDim.y;
 
-          if (x >= VOLUME_X || y >= VOLUME_Y)
+          if (x >= volume_resolution.x || y >= volume_resolution.y)
             return;
 
-          for (int z = 0; z < VOLUME_X; ++z)
+          for (int z = 0; z < volume_resolution.x; ++z)
           {
             float3 v_g = getVoxelGCoo (x, y, z);
 
@@ -182,7 +184,7 @@ namespace pcl
 
               if (update)
               {
-                uchar4 *ptr = color_volume.ptr (VOLUME_Y * z + y) + x;
+                uchar4 *ptr = color_volume.ptr (volume_resolution.y * z + y) + x;
                 uchar3 rgb = colors.ptr (coo.y)[coo.x];
                 uchar4 volume_rgbw = *ptr;
 
@@ -215,7 +217,7 @@ namespace pcl
 
       void
       updateColorVolume (const Intr& intr, float tranc_dist, const Mat33& R_inv, const float3& t,
-                                      const MapArr& vmap, const PtrStepSz<uchar3>& colors, const float3& volume_size, PtrStep<uchar4> color_volume, int max_weight)
+                                      const MapArr& vmap, const PtrStepSz<uchar3>& colors, const float3& volume_size, const int3& volume_resolution, PtrStep<uchar4> color_volume, int max_weight)
       {
         ColorVolumeImpl cvi;
         cvi.vmap = vmap;
@@ -228,12 +230,14 @@ namespace pcl
         cvi.tranc_dist = tranc_dist;
         cvi.max_weight = min (max (0, max_weight), 255);
 
-        cvi.cell_size.x = volume_size.x / VOLUME_X;
-        cvi.cell_size.y = volume_size.y / VOLUME_Y;
-        cvi.cell_size.z = volume_size.z / VOLUME_Z;
+        cvi.cell_size.x = volume_size.x / volume_resolution.x;
+        cvi.cell_size.y = volume_size.y / volume_resolution.y;
+        cvi.cell_size.z = volume_size.z / volume_resolution.z;
+
+        cvi.volume_resolution = volume_resolution;
 
         dim3 block (ColorVolumeImpl::CTA_SIZE_X, ColorVolumeImpl::CTA_SIZE_Y);
-        dim3 grid (divUp (VOLUME_X, block.x), divUp (VOLUME_Y, block.y));
+        dim3 grid (divUp (volume_resolution.x, block.x), divUp (volume_resolution.y, block.y));
 
         updateColorVolumeKernel<<<grid, block>>>(cvi);
         cudaSafeCall ( cudaGetLastError () );
