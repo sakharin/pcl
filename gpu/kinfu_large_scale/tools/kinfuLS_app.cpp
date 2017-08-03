@@ -1095,10 +1095,13 @@ struct KinFuLSApp
     Eigen::Affine3f pose = Eigen::Translation3f (t) * Eigen::AngleAxisf (R);
 
     kinfu_->setInitialCameraPose(pose);
-    kinfu_->volume().setTsdfTruncDist (0.030f/*meters*/);
-    kinfu_->setIcpCorespFilteringParams (0.1f/*meters*/, sin ( pcl::deg2rad(20.f) ));
+    //kinfu_->volume().setTsdfTruncDist (0.030f/*meters*/);
+    kinfu_->volume().setTsdfTruncDist (0.01f * vsz);
+    //kinfu_->setIcpCorespFilteringParams (0.1f/*meters*/, sin ( pcl::deg2rad(20.f) ));
+    kinfu_->setIcpCorespFilteringParams (0.03f * vsz/*meters*/, sin ( pcl::deg2rad(20.f) ));
     //kinfu_->setDepthTruncationForICP(3.f/*meters*/);
-    kinfu_->setCameraMovementThreshold(0.001f);
+    //kinfu_->setCameraMovementThreshold(0.001f);
+    kinfu_->setCameraMovementThreshold(0.0003f * vsz);
     kinfu_->setRelativeLeftCameraPosition(-eye_baseline_, 0.0f, 0.0f);
 
     //Init KinFuLSApp

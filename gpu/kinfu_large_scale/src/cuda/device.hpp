@@ -52,6 +52,7 @@ namespace pcl
   {
     namespace kinfuLS
     {
+      // 1. / 32767
       #define INV_DIV 3.051850947599719e-5f
 
       __device__ __forceinline__ void
