@@ -80,6 +80,7 @@ Work in progress: patch by Marco (AUG,19th 2012)
 
 #define HAVE_OPENCV
 #ifdef HAVE_OPENCV
+#include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #endif
@@ -1070,8 +1071,8 @@ struct KinFuLSApp
 {
   enum { PCD_BIN = 1, PCD_ASCII = 2, PLY = 3, MESH_PLY = 7, MESH_VTK = 8 };
 
-  KinFuLSApp(pcl::Grabber& source, float vsz, float volume_resolution, float shiftDistance, int snapshotRate, int height, int width, float focal_length, float eye_baseline) : exit_ (false), scan_ (false), scan_mesh_(false), scan_volume_ (false), pause_(false), triggered_capture_(true), independent_camera_ (false), render_lr_images_ (false), render_all_lr_images_ (false),
-          registration_ (false), integrate_colors_ (false), use_images_ (false), pcd_source_ (false), use_external_poses_ (false), height_ (height), width_ (width), focal_length_(focal_length), eye_baseline_ (eye_baseline), capture_ (source), was_lost_(false), time_ms_ (0)
+  KinFuLSApp(pcl::Grabber& source, float vsz, float volume_resolution, float shiftDistance, int snapshotRate, int height, int width, float focal_length, float eye_baseline, string image_path="") : exit_ (false), scan_ (false), scan_mesh_(false), scan_volume_ (false), pause_(false), triggered_capture_(true), independent_camera_ (false), render_lr_images_ (false), render_all_lr_images_ (false),
+          registration_ (false), integrate_colors_ (false), use_images_ (false), pcd_source_ (false), use_external_poses_ (false), height_ (height), width_ (width), focal_length_(focal_length), eye_baseline_ (eye_baseline), capture_ (source), image_path_ (image_path), was_lost_(false), time_ms_ (0)
   {
     //Init Kinfu Tracker
     volume_size_ = Vector3f::Constant(vsz/*meters*/);
@@ -1125,6 +1126,7 @@ struct KinFuLSApp
     cx_ = width_ / 2 - 0.5f;
     cy_ = height_ / 2 - 0.5f;
     snapshot_rate_ = snapshotRate;
+    image_grabber_.reset();
 
     Eigen::Matrix3f Rid = Eigen::Matrix3f::Identity ();   // * AngleAxisf( pcl::deg2rad(-30.f), Vector3f::UnitX());
     Eigen::Vector3f T = Vector3f (0, 0, -volume_size_(0)*1.5f);
@@ -1447,23 +1449,55 @@ struct KinFuLSApp
       unsigned char *rgb    = (unsigned char *)  &source_image_data_[0];
       unsigned short *depth = (unsigned short *) &source_depth_data_[0];
 
+      string image_rgb_path = image_path_ + "/rgb";
+      string image_depth_path = image_path_ + "/depth";
+      if (!image_grabber_) {
+        float fps = 1; // Process is slow and images are skipts
+        bool is_repeat = false;
+        image_grabber_.reset( new pcl::ImageGrabber< pcl::PointXYZRGBA >(image_depth_path, image_rgb_path, fps, is_repeat));
+      }
+
+      string depth_path = image_depth_path + "/" + image_grabber_->getDepthFileNameAtIndex(frame_counter_) + ".png";
+      string depth_yml_path = depth_path.replace(depth_path.end()-3, depth_path.end(), "yml");
+      cv::FileStorage fs(depth_yml_path, cv::FileStorage::READ);
+      bool is_yml_opened = fs.isOpened();
+      cv::Mat depths;
+      fs["depthmapRefined"] >> depths;
+
       int i1 = 0;
       int i2 = 0;
-      for (int v = 0; v < height; v++) {
-        i1 = v * width;
-        i2 = (height - v - 1) * width;
-        for (int u = 0; u < width; u++) {
-          PointXYZRGBA pt = (*cloud).at(i2);
-          rgb[3 * i1 + 0] = pt.r;
-          rgb[3 * i1 + 1] = pt.g;
-          rgb[3 * i1 + 2] = pt.b;
-          depth[i1]    = (unsigned short) (pt.z * 1000);
-          i1++;
-          i2++;
+      if (is_yml_opened) {
+        for (int v = 0; v < height; v++) {
+          i1 = v * width;
+          i2 = (height - v - 1) * width;
+          for (int u = 0; u < width; u++) {
+            PointXYZRGBA pt = (*cloud).at(i2);
+            rgb[3 * i1 + 0] = pt.r;
+            rgb[3 * i1 + 1] = pt.g;
+            rgb[3 * i1 + 2] = pt.b;
+            depth[i1]    = (unsigned short) (depths.at<double>(i1));
+            i1++;
+            i2++;
+          }
+        }
+      } else {
+        for (int v = 0; v < height; v++) {
+          i1 = v * width;
+          i2 = (height - v - 1) * width;
+          for (int u = 0; u < width; u++) {
+            PointXYZRGBA pt = (*cloud).at(i2);
+            rgb[3 * i1 + 0] = pt.r;
+            rgb[3 * i1 + 1] = pt.g;
+            rgb[3 * i1 + 2] = pt.b;
+            depth[i1]    = (unsigned short) (pt.z * 1000);
+            i1++;
+            i2++;
+          }
         }
       }
       rgb24_.data = &source_image_data_[0];
       depth_.data = &source_depth_data_[0];
+      fs.release();
     }
     data_ready_cond_.notify_one();
   }
@@ -1623,6 +1657,8 @@ struct KinFuLSApp
   Eigen::Vector3i volume_resolution_;
 
   pcl::Grabber& capture_;
+  string image_path_;
+  boost::shared_ptr< pcl::ImageGrabber< pcl::PointXYZRGBA > > image_grabber_;
   KinfuTracker *kinfu_;
 
   SceneCloudView scene_cloud_view_;
@@ -1827,8 +1863,8 @@ main (int argc, char* argv[])
       float fps = 1; // Process is slow and images are skipts
       bool is_repeat = false;
 
-      pcl::ImageGrabber< pcl::PointXYZRGBA > im(image_depth_path, image_rgb_path, fps, is_repeat);
-      string depth_path = image_depth_path + "/" + im.getDepthFileNameAtIndex(0) + ".png";
+      pcl::ImageGrabber< pcl::PointXYZRGBA > image_grabber(image_depth_path, image_rgb_path, fps, is_repeat);
+      string depth_path = image_depth_path + "/" + image_grabber.getDepthFileNameAtIndex(0) + ".png";
       cv::Mat m = cv::imread(depth_path, CV_LOAD_IMAGE_UNCHANGED);
       height = m.rows;
       width = m.cols;
@@ -1885,7 +1921,7 @@ main (int argc, char* argv[])
     }
   }
 
-  KinFuLSApp app (*capture, volume_size, volume_resolution, shift_distance, snapshot_rate, height, width, focal_length, eye_baseline);
+  KinFuLSApp app (*capture, volume_size, volume_resolution, shift_distance, snapshot_rate, height, width, focal_length, eye_baseline, image_path);
 
   string pose_path;
   if (pc::parse_argument(argc, argv, "--poses", pose_path) > 0) {
