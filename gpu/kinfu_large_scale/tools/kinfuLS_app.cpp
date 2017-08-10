@@ -1219,6 +1219,7 @@ struct KinFuLSApp
       kinfu_->setGlobalCameraPoses(Rs, ts);
       cout << "Use external poses." << endl;
       cout << "pose_path : " << poses_path << endl;
+      fs.release();
     } else {
       cout << "Cannot read external poses." << endl;
     }
