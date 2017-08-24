@@ -1228,7 +1228,8 @@ struct KinFuLSApp
   void execute(const PtrStepSz<const unsigned short>& depth, const PtrStepSz<const pcl::gpu::kinfuLS::PixelRGB>& rgb24, bool has_data)
   {
     bool has_image = false;
-    frame_counter_++;
+    if (has_data)
+      frame_counter_++;
 
     was_lost_ = kinfu_->icpIsLost();
 
@@ -1453,7 +1454,7 @@ struct KinFuLSApp
       string image_rgb_path = image_path_ + "/rgb";
       string image_depth_path = image_path_ + "/depth";
       if (!image_grabber_) {
-        float fps = 1; // Process is slow and images are skipts
+        float fps = 0.33; // Process is slow and images are skipts
         bool is_repeat = false;
         image_grabber_.reset( new pcl::ImageGrabber< pcl::PointXYZRGBA >(image_depth_path, image_rgb_path, fps, is_repeat));
       }
@@ -1549,7 +1550,7 @@ struct KinFuLSApp
           }
         }
 
-        bool has_data = data_ready_cond_.timed_wait (lock, boost::posix_time::millisec(2000));
+        bool has_data = data_ready_cond_.timed_wait (lock, boost::posix_time::millisec(5000));
 
         try { this->execute (depth_, rgb24_, has_data); }
         catch (const std::bad_alloc& /*e*/) { cout << "Bad alloc" << endl; break; }
@@ -1861,7 +1862,7 @@ main (int argc, char* argv[])
       cout << "image_path : " << image_path << endl;
       string image_rgb_path = image_path + "/rgb";
       string image_depth_path = image_path + "/depth";
-      float fps = 1; // Process is slow and images are skipts
+      float fps = 0.33; // Process is slow and images are skipts
       bool is_repeat = false;
 
       pcl::ImageGrabber< pcl::PointXYZRGBA > image_grabber(image_depth_path, image_rgb_path, fps, is_repeat);
