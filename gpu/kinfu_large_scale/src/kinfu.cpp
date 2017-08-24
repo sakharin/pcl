@@ -391,6 +391,9 @@ pcl::gpu::kinfuLS::KinfuTracker::extractAndSaveWorld ()
   {
     PCL_INFO ("Saving current world to world.pcd with %d points.\n", cloud_size);
     pcl::io::savePCDFile<pcl::PointXYZI> ("world.pcd", *(cyclical_.getWorldModel ()->getWorld ()), true);
+
+    // Save parameters
+    cyclical_.saveVoxelParameters(getCameraPose());
     return;
   }
 

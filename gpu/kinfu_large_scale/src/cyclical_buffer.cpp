@@ -40,8 +40,6 @@
 #include <pcl/common/distances.h>
 #include "internal.h"
 
-
-
 bool
 pcl::gpu::kinfuLS::CyclicalBuffer::checkForShift (const TsdfVolume::Ptr volume, const Eigen::Affine3f &cam_pose, const double distance_camera_target, const bool perform_shift, const bool last_shift, const bool force_shift)
 {
@@ -187,4 +185,18 @@ pcl::gpu::kinfuLS::CyclicalBuffer::computeAndSetNewCubeMetricOrigin (const pcl::
 
   // update the cube's metric origin
   buffer_.origin_metric = new_cube_origin_meters;
+}
+
+void
+pcl::gpu::kinfuLS::CyclicalBuffer::saveVoxelParameters(const Eigen::Affine3f &cam_pose) {
+  cv::Mat cam_t = cv::Mat::zeros(3, 1, CV_64F);
+  cam_t.at<double>(0) = cam_pose.translation()[0];
+  cam_t.at<double>(1) = cam_pose.translation()[1];
+  cam_t.at<double>(2) = cam_pose.translation()[2];
+  std::string voxel_parameter_path = "voxel_parameters.yml";
+  cv::FileStorage fs(voxel_parameter_path, cv::FileStorage::WRITE);
+  fs << "volume_size" << buffer_.volume_size.x;
+  fs << "voxel_size" << buffer_.voxels_size.x;
+  fs << "cam0_t" << cam_t;
+  fs.release();
 }

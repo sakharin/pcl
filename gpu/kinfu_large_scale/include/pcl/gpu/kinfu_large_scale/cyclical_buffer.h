@@ -49,8 +49,12 @@
 
 #include <pcl/gpu/kinfu_large_scale/world_model.h>
 
-
 #include <pcl/io/pcd_io.h>
+
+#include <opencv2/opencv.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+
 namespace pcl
 {
   namespace gpu
@@ -221,6 +225,9 @@ namespace pcl
             return (&world_model_);
           }
 
+          /** \brief Save original volume size, original voxel_size and camera position
+           */
+          void saveVoxelParameters(const Eigen::Affine3f &cam_pose);
 
         private:
 

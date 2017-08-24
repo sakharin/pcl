@@ -384,9 +384,9 @@ namespace pcl
         tg.occupied_voxels = occupied_voxels.ptr (0);
         tg.vertex_ofssets = occupied_voxels.ptr (2);
         tg.voxels_count = occupied_voxels.cols ();
-        tg.cell_size.x = volume_size.x / volume_resolution.x;
-        tg.cell_size.y = volume_size.y / volume_resolution.y;
-        tg.cell_size.z = volume_size.z / volume_resolution.z;
+        tg.cell_size.x = 1;//volume_size.x / volume_resolution.x;
+        tg.cell_size.y = 1;//volume_size.y / volume_resolution.y;
+        tg.cell_size.z = 1;//volume_size.z / volume_resolution.z;
         tg.output = output;
 
         dim3 block (TrianglesGenerator::CTA_SIZE);

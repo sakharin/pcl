@@ -38,6 +38,10 @@
 #ifndef PCL_STANDALONE_MARCHING_CUBES_IMPL_HPP_
 #define PCL_STANDALONE_MARCHING_CUBES_IMPL_HPP_
 
+#include <opencv2/opencv.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+
 #include <pcl/gpu/kinfu_large_scale/standalone_marching_cubes.h>
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -135,14 +139,40 @@ pcl::gpu::kinfuLS::StandaloneMarchingCubes<PointT>::getMeshesFromTSDFVector (con
     }
 
     //Making cloud global
-    cloud_transform.translation ()[0] = originX * cell_size;
-    cloud_transform.translation ()[1] = originY * cell_size;
-    cloud_transform.translation ()[2] = originZ * cell_size;
+    cloud_transform.translation ()[0] = originX;// * cell_size;
+    cloud_transform.translation ()[1] = originY;// * cell_size;
+    cloud_transform.translation ()[2] = originZ;// * cell_size;
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_tmp_ptr (new pcl::PointCloud<pcl::PointXYZ>);
     fromPCLPointCloud2 ( (meshes_vector.back () )->cloud, *cloud_tmp_ptr);
 
     transformPointCloud (*cloud_tmp_ptr, *cloud_tmp_ptr, cloud_transform);
+
+    // Transform mesh so the origin is at the first camera pose
+    std::string voxel_parameter_path = "voxel_parameters.yml";
+    cv::FileStorage fs(voxel_parameter_path, cv::FileStorage::READ);
+    bool is_file_openned = fs.isOpened();
+    if (is_file_openned) {
+      double volume_size;
+      int voxel_size;
+      cv::Mat cam_t = cv::Mat::zeros(3, 1, CV_64F);
+      fs["volume_size"] >> volume_size;
+      fs["voxel_size"] >> voxel_size;
+      fs["cam0_t"] >> cam_t;
+      fs.release();
+
+      Eigen::Affine3f aff;
+      double scale = volume_size / voxel_size;
+      aff.translation()[0] = -cam_t.at<double>(0);
+      aff.translation()[1] = -cam_t.at<double>(1);
+      aff.translation()[2] = -cam_t.at<double>(2);
+      aff.linear() = Eigen::Matrix3f::Identity() * scale;
+      transformPointCloud (*cloud_tmp_ptr, *cloud_tmp_ptr, aff);
+
+      PCL_INFO ("Mesh converted.\n");
+    } else {
+      PCL_INFO ("Cannot read voxle parameters.\n");
+    }
 
     toPCLPointCloud2 (*cloud_tmp_ptr, (meshes_vector.back () )->cloud);
 
