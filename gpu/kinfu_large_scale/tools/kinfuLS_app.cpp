@@ -460,6 +460,7 @@ struct ImageView
       kinfu.getVMapL(vmapsL);
       kinfu.getVMapR(vmapsR);
 
+      int number_of_frame = 30;
       if (render_lr_images_ || render_all_lr_images_) {
         // Frame 2 is the first usable frame
         if (frame_counter_ == 0) {
@@ -475,7 +476,6 @@ struct ImageView
           kinfu.getGlobalRightCameraTranslation(t_R_host_g_cam_first_);
         }
 
-        int number_of_frame = 30;
         if (frame_counter_ >= 0) {
           // Store images
           KinfuTracker::View image;
@@ -630,6 +630,12 @@ struct ImageView
           *pause = true;
           *exit = true;
         }
+      }
+
+      cout << "frame " << frame_counter_ << " of " << number_of_frame << "." << endl;
+      if (frame_counter_ == number_of_frame - 1) {
+        *pause = true;
+        *exit = true;
       }
 
       //paint3DView (colors_device_, view_device_R_, 1);
