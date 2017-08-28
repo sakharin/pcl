@@ -96,8 +96,96 @@ pcl::gpu::kinfuLS::StandaloneMarchingCubes<PointT>::getMeshFromTSDFCloud (const 
 
 //template <typename PointT> std::vector< typename pcl::gpu::StandaloneMarchingCubes<PointT>::MeshPtr >
 template <typename PointT> void
-pcl::gpu::kinfuLS::StandaloneMarchingCubes<PointT>::getMeshesFromTSDFVector (const std::vector<PointCloudPtr> &tsdf_clouds, const std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f> > &tsdf_offsets)
+pcl::gpu::kinfuLS::StandaloneMarchingCubes<PointT>::getMeshesFromTSDFVector (const std::vector<PointCloudPtr> &tsdf_clouds, const std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f> > &tsdf_offsets, std::string parameter_path)
 {
+  // Calculate normalize scale and normalize parameters
+  std::string in_param_file = parameter_path + "/Parameters.yml";
+  cv::FileStorage in_param_fs(in_param_file, cv::FileStorage::READ);
+  bool is_in_param_file_openned = in_param_fs.isOpened();
+  double wh_scale;
+  if (is_in_param_file_openned) {
+    double image_width;
+    double image_height;
+    double focal_length;
+    double cx;
+    double cy;
+    double k1;
+    double k2;
+
+    in_param_fs["image_width"] >> image_width;
+    in_param_fs["image_height"] >> image_height;
+    in_param_fs["f"] >> focal_length;
+    in_param_fs["cx"] >> cx;
+    in_param_fs["cy"] >> cy;
+    in_param_fs["k1"] >> k1;
+    in_param_fs["k2"] >> k2;
+    in_param_fs.release();
+
+    // Calculate normalize scale
+    wh_scale = std::max(image_width, image_height);
+    wh_scale = 1.0f / wh_scale;
+
+    // Write normalized parameters
+    std::string out_param_file = parameter_path + "/NormalizedParameters.yml";
+    cv::FileStorage out_param_fs(out_param_file, cv::FileStorage::WRITE);
+    out_param_fs << "image_width" << image_width;
+    out_param_fs << "image_height" << image_height;
+    out_param_fs << "f" << focal_length * wh_scale;
+    out_param_fs << "cx" << cx / image_width;
+    out_param_fs << "cy" << cy / image_height;
+    out_param_fs << "k1" << k1;
+    out_param_fs << "k2" << k2;
+    out_param_fs.release();
+
+    // Read estimated parameters
+    std::string in_est_param_file = parameter_path + "/EstimatedParameters.yml";
+    cv::FileStorage in_est_param_fs(in_est_param_file, cv::FileStorage::READ);
+    bool is_in_est_param_file_openned = in_est_param_fs.isOpened();
+    if (is_in_est_param_file_openned) {
+      int num_features;
+      cv::Mat inv_depths;
+      in_est_param_fs["num_features_"] >> num_features;
+      in_est_param_fs["inv_depths"] >> inv_depths;
+      in_est_param_fs.release();
+
+      // Write normalized parameters
+      std::string out_est_param_file = parameter_path + "/NormalizedEstimatedParameters.yml";
+      cv::FileStorage out_est_param_fs(out_est_param_file, cv::FileStorage::WRITE);
+      out_est_param_fs << "image_width" << image_width;
+      out_est_param_fs << "image_height" << image_height;
+      out_est_param_fs << "f" << focal_length * wh_scale;
+      out_est_param_fs << "cx" << cx / image_width;
+      out_est_param_fs << "cy" << cy / image_height;
+      out_est_param_fs << "k1" << k1;
+      out_est_param_fs << "k2" << k2;
+      out_est_param_fs << "num_features_" << num_features;
+      out_est_param_fs << "inv_depths" << inv_depths * wh_scale;
+      out_est_param_fs.release();
+    }
+  }
+
+  // Scale camera positions
+  std::string in_camera_pose_file = parameter_path + "/CameraPoses.yml";
+  cv::FileStorage in_camera_pose_fs(in_camera_pose_file, cv::FileStorage::READ);
+  bool is_in_camera_pose_file_openned = in_camera_pose_fs.isOpened();
+  if (is_in_camera_pose_file_openned) {
+    cv::Mat Ts;
+    in_camera_pose_fs["R"] >> Ts;
+    in_camera_pose_fs.release();
+
+    int num_camera = Ts.cols / 4;
+    for (int i = 0; i < num_camera; i++) {
+      Ts.at<double>(0, i * 4 + 3) *= wh_scale;
+      Ts.at<double>(1, i * 4 + 3) *= wh_scale;
+      Ts.at<double>(2, i * 4 + 3) *= wh_scale;
+    }
+
+    std::string out_camera_pose_file = parameter_path + "/NormalizedCameraPoses.yml";
+    cv::FileStorage out_camera_pose_fs(out_camera_pose_file, cv::FileStorage::WRITE);
+    out_camera_pose_fs << "R" << Ts;
+    out_camera_pose_fs.release();
+  }
+
   std::vector< MeshPtr > meshes_vector;
 
   int max_iterations = std::min( tsdf_clouds.size (), tsdf_offsets.size () ); //Safety check
@@ -162,12 +250,29 @@ pcl::gpu::kinfuLS::StandaloneMarchingCubes<PointT>::getMeshesFromTSDFVector (con
       fs.release();
 
       Eigen::Affine3f aff;
+      // Convert to first camera position and scale to meters
       double scale = volume_size / voxel_size;
       aff.translation()[0] = -cam_t.at<double>(0);
       aff.translation()[1] = -cam_t.at<double>(1);
       aff.translation()[2] = -cam_t.at<double>(2);
       aff.linear() = Eigen::Matrix3f::Identity() * scale;
       transformPointCloud (*cloud_tmp_ptr, *cloud_tmp_ptr, aff);
+
+      // Scale to mm.
+      aff.translation()[0] = 0;
+      aff.translation()[1] = 0;
+      aff.translation()[2] = 0;
+      aff.linear() = Eigen::Matrix3f::Identity() * 1000;
+      transformPointCloud (*cloud_tmp_ptr, *cloud_tmp_ptr, aff);
+
+      // Normalize
+      if (is_in_param_file_openned) {
+        aff.translation()[0] = 0;
+        aff.translation()[1] = 0;
+        aff.translation()[2] = 0;
+        aff.linear() = Eigen::Matrix3f::Identity() * wh_scale;
+        transformPointCloud (*cloud_tmp_ptr, *cloud_tmp_ptr, aff);
+      }
 
       PCL_INFO ("Mesh converted.\n");
     } else {

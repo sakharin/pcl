@@ -105,13 +105,18 @@ main (int argc, char** argv)
 
     PCL_WARN ("Processing world with volume size set to %.2f meters\n", volume_size);
 
+    // Get parameter file
+    std::string parameter_path;
+    pcl::console::parse_argument (argc, argv, "--parameter_path", parameter_path);
+    pcl::console::parse_argument (argc, argv, "-pp", parameter_path);
+
     pcl::gpu::kinfuLS::StandaloneMarchingCubes<pcl::PointXYZI> m_cubes (volume_resolution, volume_resolution, volume_resolution, volume_size);
 
     //~ //Creating the output
     //~ boost::shared_ptr<pcl::PolygonMesh> mesh_ptr_;
     //~ std::vector< boost::shared_ptr<pcl::PolygonMesh> > meshes;
 
-    m_cubes.getMeshesFromTSDFVector (clouds, transforms);
+    m_cubes.getMeshesFromTSDFVector (clouds, transforms, parameter_path);
 
     PCL_INFO ("Done!\n");
     return (0);
